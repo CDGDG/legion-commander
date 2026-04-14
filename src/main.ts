@@ -2,6 +2,15 @@ import { Application } from 'pixi.js';
 import { Game } from './core/Game';
 import { waitForFontsReady } from './utils/Fonts';
 
+// Register Service Worker (PWA) — only in production to avoid caching HMR
+if ('serviceWorker' in navigator && (import.meta as any).env?.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('SW registration failed:', err);
+    });
+  });
+}
+
 async function main() {
   // Wait for web fonts to load so initial render isn't garbled on Windows
   await waitForFontsReady();
