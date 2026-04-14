@@ -85,6 +85,7 @@ export class Game {
     this.hud = new HUD(app.screen.width, app.screen.height);
     this.screens = new Screens();
     this.input = new Input(app.view as HTMLCanvasElement);
+    this.hud.stanceUnlockedChecker = (id: string) => this.screens.isStanceUnlocked(id as any);
 
     app.stage.addChild(this.hud.container);
     app.stage.addChild(this.screens.container);
@@ -330,15 +331,34 @@ export class Game {
 
     this.state.totalTime += dt;
 
-    // Stance change (1-5 keys)
+    // Stance change (1-8 keys) - only available stances
     const stanceKey = this.input.getStanceKey();
     if (stanceKey) {
-      const stanceMap: Record<number, CommandStance> = { 1: 'defensive', 2: 'aggressive', 3: 'follow', 4: 'spread', 5: 'charge' };
+      const stanceMap: Record<number, CommandStance> = {
+        1: 'attack', 2: 'evade', 3: 'protect', 4: 'hold',
+        5: 'rally', 6: 'execute', 7: 'surround', 8: 'wall',
+      };
       const newStance = stanceMap[stanceKey];
       if (newStance && newStance !== this.state.stance) {
-        this.state.stance = newStance;
+        // Check if unlocked
         const stanceDef = STANCES.find(s => s.id === newStance);
-        if (stanceDef) this.hud.showCenterMessage(`⚔ ${stanceDef.name}`, 0.8);
+        if (!stanceDef) return;
+        const isUnlocked = stanceDef.cost === 0 || this.screens.isStanceUnlocked(newStance);
+        if (!isUnlocked) {
+          this.hud.showCenterMessage(`🔒 ${stanceDef.name} 미해금 (${stanceDef.cost}G)`, 1.0);
+        } else {
+          this.state.stance = newStance;
+          // Snapshot hold anchor at activation time
+          if (newStance === 'hold') {
+            this.state.holdAnchorX = this.player.x;
+            this.state.holdAnchorY = this.player.y;
+          }
+          // Rally triggers a flash
+          if (newStance === 'rally') {
+            this.state.rallyTriggerTime = this.state.totalTime;
+          }
+          this.hud.showCenterMessage(`${stanceDef.keyword} ${stanceDef.name}`, 0.8);
+        }
       }
     }
 

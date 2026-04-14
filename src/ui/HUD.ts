@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { GameState, SoldierType } from '../core/GameState';
 import { Player } from '../entities/Player';
 import { FONT_MONO } from '../utils/Fonts';
+import { STANCES } from '../data/ContentData';
 
 const STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: 0xffffff });
 const TITLE_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
@@ -12,6 +13,8 @@ const SYNERGY_COLORS: Record<SoldierType, number> = {
 
 export class HUD {
   container: Container;
+  private stanceContainer: Container = new Container();
+  stanceUnlockedChecker: ((id: string) => boolean) | null = null;
 
   // Bottom HP bar
   private hpBarContainer: Container;
@@ -42,6 +45,7 @@ export class HUD {
     // === BOTTOM HP BAR ===
     this.hpBarContainer = new Container();
     this.container.addChild(this.hpBarContainer);
+    this.container.addChild(this.stanceContainer);
 
     this.hpBarBg = new Graphics();
     this.hpBarContainer.addChild(this.hpBarBg);
@@ -201,6 +205,55 @@ export class HUD {
       this.centerMsg.scale.set(1 + Math.max(0, 0.3 - this.centerMsgTimer * 0.3));
       if (this.centerMsgTimer <= 0) this.centerMsg.visible = false;
     }
+
+    // Stance bar (bottom-left)
+    this.renderStanceBar(state, screenW, screenH);
+  }
+
+  private renderStanceBar(state: GameState, _screenW: number, screenH: number): void {
+    this.stanceContainer.removeChildren();
+    const btnW = 56, btnH = 42, gap = 4;
+    const startX = 10;
+    const y = screenH - 40 - btnH - 8; // above HP bar
+
+    STANCES.forEach((st, i) => {
+      const unlocked = st.cost === 0 || (this.stanceUnlockedChecker ? this.stanceUnlockedChecker(st.id) : false);
+      const active = state.stance === st.id;
+      const x = startX + i * (btnW + gap);
+
+      const g = new Graphics();
+      // Background
+      g.beginFill(active ? st.color : (unlocked ? 0x1a1a2a : 0x0a0a10), active ? 0.9 : 0.7);
+      g.lineStyle(active ? 2.5 : 1, active ? 0xffffff : st.color, active ? 1 : (unlocked ? 0.5 : 0.2));
+      g.drawRoundedRect(x, y, btnW, btnH, 6);
+      g.endFill();
+      this.stanceContainer.addChild(g);
+
+      // Key label (top-left)
+      const keyLabel = new Text(st.key, new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 10, fill: active ? 0xffffff : (unlocked ? 0xaaaaaa : 0x555555), fontWeight: 'bold',
+      }));
+      keyLabel.x = x + 4; keyLabel.y = y + 3;
+      this.stanceContainer.addChild(keyLabel);
+
+      // Lock icon or keyword (centered)
+      const centerLabel = new Text(unlocked ? st.keyword : '🔒', new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 18, fill: active ? 0xffffff : (unlocked ? st.color : 0x444444), fontWeight: 'bold',
+      }));
+      centerLabel.anchor.set(0.5);
+      centerLabel.x = x + btnW / 2;
+      centerLabel.y = y + btnH / 2;
+      this.stanceContainer.addChild(centerLabel);
+
+      // Name label (bottom)
+      const nameLabel = new Text(st.name, new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 9, fill: active ? 0xffffff : (unlocked ? 0x999999 : 0x555555),
+      }));
+      nameLabel.anchor.set(0.5, 1);
+      nameLabel.x = x + btnW / 2;
+      nameLabel.y = y + btnH - 2;
+      this.stanceContainer.addChild(nameLabel);
+    });
   }
 
   showReward(

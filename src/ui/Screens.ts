@@ -1,5 +1,5 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { WEAPON_BASES, SOLDIER_DEFS, ARMOR_DATA, type WeaponBase, type SoldierDef, type ArmorPiece, type ArmorSlot } from '../data/ContentData';
+import { WEAPON_BASES, SOLDIER_DEFS, ARMOR_DATA, STANCES, type WeaponBase, type SoldierDef, type ArmorPiece, type ArmorSlot, type CommandStance } from '../data/ContentData';
 import { getTopScores, savePlayerName, loadPlayerName, isCloudEnabled, type ScoreEntry } from '../systems/Leaderboard';
 import { FONT_MONO } from '../utils/Fonts';
 
@@ -101,12 +101,14 @@ export class Screens {
   private weapons: WeaponDef[] = WEAPONS;
   private soldierUnlocks: SoldierUnlock[] = SOLDIER_UNLOCKS;
   private armorUnlocks: Map<string, boolean> = new Map();
+  private stanceUnlocks: Map<string, boolean> = new Map();
   selectedWeapon: WeaponDef = WEAPONS[0];
   equippedArmor: Map<string, string> = new Map(); // slot -> armorId
   playerName: string = '';
   private cachedScores: ScoreEntry[] = [];
   private scoresLoading = false;
   private scoresLoaded = false; // true after at least one fetch attempt completes
+  private wheelHandler: ((e: WheelEvent) => void) | null = null;
   private onStartGame: (() => void) | null = null;
 
   constructor() {
@@ -147,6 +149,11 @@ export class Screens {
             this.equippedArmor.set(slot, id as string);
           }
         }
+        if (save.stances) {
+          for (const [id, unlocked] of Object.entries(save.stances)) {
+            if (unlocked) this.stanceUnlocks.set(id, true);
+          }
+        }
         if (save.selectedWeapon) {
           const w = this.weapons.find(wp => wp.id === save.selectedWeapon);
           if (w && w.unlocked) this.selectedWeapon = w;
@@ -166,11 +173,21 @@ export class Screens {
     for (const [id, unlocked] of this.armorUnlocks) armorMap[id] = unlocked;
     const equippedMap: Record<string, string> = {};
     for (const [slot, id] of this.equippedArmor) equippedMap[slot] = id;
+    const stanceMap: Record<string, boolean> = {};
+    for (const [id, unlocked] of this.stanceUnlocks) stanceMap[id] = unlocked;
     localStorage.setItem('legion_save', JSON.stringify({
       gold: this.gold, upgrades: upgradeMap, weapons: weaponMap,
       soldiers: soldierMap, selectedWeapon: this.selectedWeapon.id,
       armor: armorMap, equippedArmor: equippedMap,
+      stances: stanceMap,
     }));
+  }
+
+  isStanceUnlocked(id: CommandStance): boolean {
+    const def = STANCES.find(s => s.id === id);
+    if (!def) return false;
+    if (def.cost === 0) return true;
+    return this.stanceUnlocks.get(id) === true;
   }
 
   isSoldierUnlocked(id: string): boolean {
@@ -189,7 +206,7 @@ export class Screens {
     this.save();
   }
 
-  private currentTab: 'upgrades' | 'weapons' | 'soldiers' | 'armor' | 'ranking' = 'upgrades';
+  private currentTab: 'upgrades' | 'weapons' | 'soldiers' | 'armor' | 'stances' | 'ranking' = 'upgrades';
   private scrollOffset = 0;
 
   showTitle(screenW: number, screenH: number, onStart: () => void): void {
@@ -223,12 +240,13 @@ export class Screens {
     this.container.addChild(goldText);
 
     // === TAB BUTTONS ===
-    type TabId = 'upgrades' | 'weapons' | 'soldiers' | 'armor' | 'ranking';
+    type TabId = 'upgrades' | 'weapons' | 'soldiers' | 'armor' | 'stances' | 'ranking';
     const tabs: { id: TabId; label: string; color: number }[] = [
       { id: 'upgrades', label: '강화', color: 0x44cc44 },
       { id: 'weapons', label: `무기 (${this.weapons.length})`, color: 0xff6644 },
       { id: 'soldiers', label: `병사 (${this.soldierUnlocks.length + 2})`, color: 0x3366cc },
       { id: 'armor', label: `방어구 (${ARMOR_UNLOCKS.length})`, color: 0xffaa44 },
+      { id: 'stances', label: `⚔ 전략 (${STANCES.length})`, color: 0xaa44ff },
       { id: 'ranking', label: '🏆 랭킹', color: 0xffd700 },
     ];
 
@@ -273,7 +291,6 @@ export class Screens {
     contentBg.lineStyle(1, 0x222233, 0.6);
     contentBg.drawRoundedRect(contentX, contentY, contentW, contentH, 8);
     contentBg.endFill();
-    contentBg.eventMode = 'static';
     this.container.addChild(contentBg);
 
     // Determine total item count for current tab
@@ -282,6 +299,7 @@ export class Screens {
       this.currentTab === 'weapons' ? this.weapons.length :
       this.currentTab === 'soldiers' ? this.soldierUnlocks.length :
       this.currentTab === 'armor' ? ARMOR_UNLOCKS.length :
+      this.currentTab === 'stances' ? STANCES.length :
       0;
 
     const maxVisible = Math.floor((contentH - 12) / (itemH + 6));
@@ -290,15 +308,23 @@ export class Screens {
     if (this.scrollOffset > maxScroll) this.scrollOffset = maxScroll;
     const scrollOff = this.scrollOffset;
 
-    // Scroll wheel handler on the whole content area
-    contentBg.on('wheel', (e: any) => {
+    // === WHEEL SCROLL via window listener (PixiJS cards consume wheel events) ===
+    // Remove any previous listener before installing the current one
+    if (this.wheelHandler) window.removeEventListener('wheel', this.wheelHandler);
+    this.wheelHandler = (e: WheelEvent) => {
+      if (!this.container.visible) return;
+      // Only scroll when cursor is inside content area
+      if (e.clientX < contentX || e.clientX > contentX + contentW) return;
+      if (e.clientY < contentY || e.clientY > contentY + contentH) return;
+      e.preventDefault();
       const dir = e.deltaY > 0 ? 1 : -1;
       const next = Math.max(0, Math.min(maxScroll, this.scrollOffset + dir));
       if (next !== this.scrollOffset) {
         this.scrollOffset = next;
         this.showTitle(screenW, screenH, onStart);
       }
-    });
+    };
+    window.addEventListener('wheel', this.wheelHandler, { passive: false });
 
     // === SCROLLBAR (visual indicator + draggable-ish) ===
     if (totalCount > maxVisible) {
@@ -420,6 +446,27 @@ export class Screens {
               this.equippedArmor.set(a.slot, a.id); this.save();
             }
             this.showTitle(screenW, screenH, onStart);
+          }
+        );
+      });
+    } else if (this.currentTab === 'stances') {
+      STANCES.forEach((st, i) => {
+        if (i < scrollOff || i >= scrollOff + maxVisible) return;
+        const y = contentY + 6 + (i - scrollOff) * (itemH + 6);
+        const owned = st.cost === 0 || this.stanceUnlocks.get(st.id) === true;
+        this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
+          `[${st.key}키] ${st.keyword} ${st.name}`,
+          `${st.description} | 포기: ${st.sacrifice}`,
+          owned ? 'UNLOCKED' : '',
+          owned ? 0 : st.cost,
+          st.color, owned, false,
+          () => {
+            if (!owned && this.gold >= st.cost) {
+              this.gold -= st.cost;
+              this.stanceUnlocks.set(st.id, true);
+              this.save();
+              this.showTitle(screenW, screenH, onStart);
+            }
           }
         );
       });

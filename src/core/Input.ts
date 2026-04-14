@@ -40,11 +40,9 @@ export class Input {
   }
 
   getStanceKey(): number | null {
-    if (this.isKeyDown('1')) return 1;
-    if (this.isKeyDown('2')) return 2;
-    if (this.isKeyDown('3')) return 3;
-    if (this.isKeyDown('4')) return 4;
-    if (this.isKeyDown('5')) return 5;
+    for (let i = 1; i <= 8; i++) {
+      if (this.isKeyDown(String(i))) return i;
+    }
     return null;
   }
 

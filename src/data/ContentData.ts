@@ -228,28 +228,89 @@ export const ASCENSION_LEVELS: AscensionLevel[] = [
 ];
 
 // =============================================================
-// COMMAND STANCES (1-2-3 keys)
+// COMMAND STANCES — 4 free + 4 unlockable via gold
+// 각 전략은 "무엇을 포기하는지" 명확함
+//   - 공격!: 안전 포기
+//   - 피해!: 딜 기회 포기
+//   - 지켜!: 추격 포기
+//   - 고정!: 주도권 포기
 // =============================================================
-export type CommandStance = 'defensive' | 'aggressive' | 'follow' | 'spread' | 'charge';
+export type CommandStance =
+  | 'attack' | 'evade' | 'protect' | 'hold'
+  | 'rally' | 'execute' | 'surround' | 'wall';
 
 export interface StanceDef {
   id: CommandStance;
   key: string;
-  name: string;
+  name: string;       // short imperative name ("공격!")
+  keyword: string;    // 1-2 char label for HUD badge
   description: string;
+  sacrifice: string;  // what this stance gives up
   armySpeedMult: number;
   armyAtkMult: number;
   armyDefMult: number;
-  formation: string; // how soldiers position
+  cost: number;       // gold to unlock (0 = default)
+  color: number;
 }
 
 export const STANCES: StanceDef[] = [
-  { id: 'defensive', key: '1', name: '수비', description: '플레이어 주변 밀착. 방어력 UP, 공격력 DOWN', armySpeedMult: 0.8, armyAtkMult: 0.7, armyDefMult: 1.5, formation: 'tight' },
-  { id: 'aggressive', key: '2', name: '공격', description: '적극적으로 적 추격. 공격력 UP, 방어력 DOWN', armySpeedMult: 1.3, armyAtkMult: 1.4, armyDefMult: 0.7, formation: 'spread' },
-  { id: 'follow', key: '3', name: '추종', description: '플레이어를 따라다니며 균형 잡힌 전투', armySpeedMult: 1.0, armyAtkMult: 1.0, armyDefMult: 1.0, formation: 'medium' },
-  { id: 'spread', key: '4', name: '산개', description: '넓게 퍼져 전장 제어. 광역 커버', armySpeedMult: 1.1, armyAtkMult: 0.9, armyDefMult: 0.9, formation: 'wide' },
-  { id: 'charge', key: '5', name: '돌격', description: '마우스 위치로 전원 돌격! 폭발적 화력', armySpeedMult: 1.8, armyAtkMult: 1.6, armyDefMult: 0.5, formation: 'charge' },
+  // === FREE (default unlocked) ===
+  {
+    id: 'attack', key: '1', name: '공격!', keyword: '攻',
+    description: '전 병사 가장 가까운 적 즉시 추적. 죽은 적 바로 재탐색. 광범위 추격.',
+    sacrifice: '안전 포기 — 적진 한복판까지 따라감',
+    armySpeedMult: 1.3, armyAtkMult: 1.3, armyDefMult: 0.8, cost: 0, color: 0xff4444,
+  },
+  {
+    id: 'evade', key: '2', name: '피해!', keyword: '避',
+    description: '원거리 병사는 적과 거리 유지하며 카이팅. 근거리는 플레이어 뒤로 후퇴.',
+    sacrifice: '딜 기회 포기 — 교전 회피 우선',
+    armySpeedMult: 1.5, armyAtkMult: 0.6, armyDefMult: 1.1, cost: 0, color: 0x44aaff,
+  },
+  {
+    id: 'protect', key: '3', name: '지켜!', keyword: '護',
+    description: '근거리 병사가 후열(원거리·성직자) 무게중심을 둘러쌈. 접근 적만 인터셉트.',
+    sacrifice: '추격 포기 — 후열을 절대 떠나지 않음',
+    armySpeedMult: 1.0, armyAtkMult: 1.0, armyDefMult: 1.3, cost: 0, color: 0xffdd44,
+  },
+  {
+    id: 'hold', key: '4', name: '고정!', keyword: '止',
+    description: '현재 위치에 leash 생성. 사거리 안에 들어온 적만 공격. 추격 안 함.',
+    sacrifice: '주도권 포기 — 적이 올 때까지 대기',
+    armySpeedMult: 0.5, armyAtkMult: 1.1, armyDefMult: 1.4, cost: 0, color: 0x88ff88,
+  },
+
+  // === UNLOCKABLE (via gold) ===
+  {
+    id: 'rally', key: '5', name: '집결!', keyword: '集',
+    description: '전 병사 즉시 플레이어 주변 재집결. 보스 패턴 회피/전황 리셋용.',
+    sacrifice: '딜타임 포기 — 잠시 전투 중단',
+    armySpeedMult: 2.0, armyAtkMult: 0.8, armyDefMult: 1.2, cost: 150, color: 0xaa44ff,
+  },
+  {
+    id: 'execute', key: '6', name: '처형!', keyword: '殺',
+    description: 'HP 낮은 적 최우선 타겟. 마무리 강화 — 엘리트/보스 약화 효율↑.',
+    sacrifice: '전열 유지 포기 — 약한 적 쫓느라 진형 흐트러짐',
+    armySpeedMult: 1.2, armyAtkMult: 1.4, armyDefMult: 0.9, cost: 250, color: 0xff8844,
+  },
+  {
+    id: 'surround', key: '7', name: '포위!', keyword: '圍',
+    description: '적 밀집 지역 사방으로 흩어져 포위. 탈출 막기.',
+    sacrifice: '화력 집중 포기 — 분산되어 개별 대상 딜은 낮음',
+    armySpeedMult: 1.4, armyAtkMult: 1.0, armyDefMult: 0.9, cost: 300, color: 0x44ff88,
+  },
+  {
+    id: 'wall', key: '8', name: '방벽!', keyword: '壁',
+    description: '탱커(검병/창병)가 플레이어 전방에 방어선 형성. 원거리는 뒤에서 자유 사격.',
+    sacrifice: '추격 포기 — 정적 방어 대형 유지',
+    armySpeedMult: 0.8, armyAtkMult: 1.0, armyDefMult: 1.6, cost: 400, color: 0xcccccc,
+  },
 ];
+
+/** Look up stance definition by id (falls back to 'attack') */
+export function getStance(id: CommandStance): StanceDef {
+  return STANCES.find(s => s.id === id) || STANCES[0];
+}
 
 // =============================================================
 // ACHIEVEMENTS

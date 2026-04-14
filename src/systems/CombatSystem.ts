@@ -29,17 +29,80 @@ export class CombatSystem {
     for (const e of enemies) if (e.active && e.alive) this.enemyHash.insert(e);
     for (const s of soldiers) if (s.active && s.alive) this.soldierHash.insert(s);
 
+    // === STANCE ANCHORS ===
+    // Compute rear-mass anchor (center of ranged soldiers) for 'protect' stance
+    let rearAX = player.x, rearAY = player.y;
+    if (state.stance === 'protect') {
+      let cnt = 0, sx = 0, sy = 0;
+      for (const s of soldiers) {
+        if (!s.active || !s.alive) continue;
+        if (s.type === 'archer' || s.type === 'mage' || s.type === 'priest') {
+          sx += s.x; sy += s.y; cnt++;
+        }
+      }
+      if (cnt > 0) { rearAX = sx / cnt; rearAY = sy / cnt; }
+      else { rearAX = player.x; rearAY = player.y; }
+    }
+    // Wall anchor: point in front of player (between player and nearest enemy)
+    let wallAX = player.x, wallAY = player.y;
+    if (state.stance === 'wall') {
+      // Find nearest enemy to determine wall direction
+      let nearestE: Enemy | null = null;
+      let nd = Infinity;
+      for (const e of enemies) {
+        if (!e.active || !e.alive) continue;
+        const d = dist(player.x, player.y, e.x, e.y);
+        if (d < nd) { nd = d; nearestE = e; }
+      }
+      if (nearestE) {
+        const dx = nearestE.x - player.x, dy = nearestE.y - player.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        wallAX = player.x + (dx / len) * 50;
+        wallAY = player.y + (dy / len) * 50;
+      }
+    }
+
     // --- Soldiers attack enemies ---
     for (const s of soldiers) {
       if (!s.active || !s.alive) continue;
-      const nearby = this.enemyHash.query(s.x, s.y, s.attackRange * 3);
-      let nearest: Enemy | null = null;
-      let nearestDist = Infinity;
-      for (const e of nearby) {
-        const d = dist(s.x, s.y, e.x, e.y);
-        if (d < nearestDist) { nearestDist = d; nearest = e; }
+
+      // Target search: executes stance picks lowest-HP, others pick nearest
+      const searchR = s.attackRange * (state.stance === 'hold' ? 1.2 : 3);
+      const nearby = this.enemyHash.query(s.x, s.y, searchR);
+      let chosen: Enemy | null = null;
+      let chosenDist = Infinity;
+
+      if (state.stance === 'execute') {
+        // Prefer lowest HP in range
+        let lowestHp = Infinity;
+        for (const e of nearby) {
+          if (e.hp < lowestHp) { lowestHp = e.hp; chosen = e; chosenDist = dist(s.x, s.y, e.x, e.y); }
+        }
+      } else {
+        for (const e of nearby) {
+          const d = dist(s.x, s.y, e.x, e.y);
+          if (d < chosenDist) { chosenDist = d; chosen = e; }
+        }
       }
-      const didAttack = s.update(dt, player.x, player.y, nearest?.x ?? null, nearest?.y ?? null, nearestDist, state.stance);
+
+      // Anchor selection by stance
+      const isRangedUnit = s.type === 'archer' || s.type === 'mage' || s.type === 'priest';
+      let anchorX = player.x, anchorY = player.y;
+      if (state.stance === 'hold') {
+        anchorX = state.holdAnchorX; anchorY = state.holdAnchorY;
+      } else if (state.stance === 'protect') {
+        anchorX = rearAX; anchorY = rearAY;
+      } else if (state.stance === 'wall' && !isRangedUnit) {
+        anchorX = wallAX; anchorY = wallAY;
+      }
+
+      const didAttack = s.update(
+        dt, player.x, player.y,
+        chosen?.x ?? null, chosen?.y ?? null, chosenDist,
+        state.stance,
+        anchorX, anchorY,
+      );
+      const nearest = chosen;
       if (didAttack && nearest) {
         const isRanged = s.type === 'archer' || s.type === 'mage' || s.type === 'priest';
         if (isRanged && this.projectiles) {

@@ -1,7 +1,7 @@
 import { Graphics, Container, Sprite } from 'pixi.js';
 import { dist, normalize, randomRange } from '../utils/math';
 import type { SoldierType, CommandStance } from '../core/GameState';
-import { STANCES } from '../data/ContentData';
+import { getStance } from '../data/ContentData';
 import { updateIsoPosition, createShadow } from '../utils/IsoHelper';
 import { loadCharacterSheet, CharacterTextures, getDirIndex } from '../utils/SpriteLoader';
 
@@ -90,7 +90,16 @@ export class Soldier {
     if (frame) this.sprite.texture = frame;
   }
 
-  update(dt: number, playerX: number, playerY: number, targetX: number | null, targetY: number | null, targetDist: number, stance: CommandStance = 'follow'): boolean {
+  /**
+   * Update soldier AI.
+   * @param anchorX/Y - stance-specific anchor point (hold=hold anchor, protect=rear mass, else player)
+   */
+  update(
+    dt: number, playerX: number, playerY: number,
+    targetX: number | null, targetY: number | null, targetDist: number,
+    stance: CommandStance = 'attack',
+    anchorX?: number, anchorY?: number,
+  ): boolean {
     if (!this.alive || !this.active) return false;
     this.attackCooldown -= dt;
 
@@ -100,42 +109,118 @@ export class Soldier {
       if (this.atkVisTimer <= 0) { this.atkGfx.visible = false; this.isAtk = false; }
     }
 
-    const stanceDef = STANCES.find(s => s.id === stance);
-    const spdMult = stanceDef?.armySpeedMult ?? 1;
-    const atkMult = stanceDef?.armyAtkMult ?? 1;
+    const stanceDef = getStance(stance);
+    const spdMult = stanceDef.armySpeedMult;
 
-    // Formation offset varies by stance
-    let formRange = 40;
-    if (stance === 'defensive') formRange = 20;
-    else if (stance === 'aggressive') formRange = 80;
-    else if (stance === 'spread') formRange = 100;
-    else if (stance === 'charge') formRange = 120;
+    // Is this soldier a ranged unit? (drives evade/protect/wall behavior)
+    const isRanged = this.type === 'archer' || this.type === 'mage' || this.type === 'priest';
+    const isMelee = !isRanged;
 
-    const formX = playerX + this.offsetX * (formRange / 40);
-    const formY = playerY + this.offsetY * (formRange / 40);
+    // Formation offset and pursuit vary per stance + class
+    let formRange = 40;           // scale of per-soldier offset around anchor
+    let pursuitMult = 3;          // how far to chase from anchor (×attackRange)
+    let returnSpeedMult = 1.5;    // speed toward anchor when idle
+    let willEngage = true;        // does this soldier chase/attack?
+    let idealDistFromTarget = this.attackRange * 0.9; // where to stop approaching
+
+    // Anchor = stance-specific, defaults to player
+    let aX = anchorX ?? playerX;
+    let aY = anchorY ?? playerY;
+
+    switch (stance) {
+      case 'attack':
+        formRange = 70;
+        pursuitMult = 10;          // chase enemies FAR from anchor
+        willEngage = true;
+        break;
+      case 'evade':
+        // Ranged kite; melee mostly idle back
+        formRange = 30;
+        if (isRanged) {
+          pursuitMult = 1;          // don't chase, stay at edge of range
+          idealDistFromTarget = this.attackRange * 0.95; // stay at max range
+        } else {
+          pursuitMult = 0.5;        // melee retreats
+          willEngage = false;
+        }
+        returnSpeedMult = 2.0;     // flee faster
+        break;
+      case 'protect':
+        // Melee ring around rear anchor; ranged cluster at anchor
+        if (isMelee) {
+          formRange = 55;           // outer ring
+          pursuitMult = 2;          // short intercept range
+        } else {
+          formRange = 20;           // tight cluster at anchor
+          pursuitMult = 1.5;
+        }
+        break;
+      case 'hold':
+        // Use hold anchor (from state), tight leash
+        formRange = 35;
+        pursuitMult = 1;            // only attack enemies within own range
+        returnSpeedMult = 1.2;
+        break;
+      case 'rally':
+        // Everyone snap to player
+        formRange = 25;
+        pursuitMult = 0.5;          // don't chase during rally
+        returnSpeedMult = 3.5;      // very fast return
+        willEngage = false;
+        break;
+      case 'execute':
+        formRange = 80;
+        pursuitMult = 12;           // aggressive chase of weak targets
+        break;
+      case 'surround':
+        // Spread wide, push through
+        formRange = 130;
+        pursuitMult = 8;
+        break;
+      case 'wall':
+        // Melee form a wall in front of player; ranged stay behind
+        formRange = isMelee ? 50 : 30;
+        pursuitMult = isMelee ? 2 : 1;
+        break;
+    }
+
+    // Formation position around anchor
+    const formX = aX + this.offsetX * (formRange / 40);
+    const formY = aY + this.offsetY * (formRange / 40);
     let shouldAttack = false;
 
-    // Aggressive/charge: pursue enemies further
-    const pursuitRange = stance === 'aggressive' ? 5 : stance === 'charge' ? 8 : 3;
+    // --- COMBAT / MOVEMENT ---
+    const hasTarget = targetX !== null && targetY !== null;
+    const inReachOfAnchor = hasTarget && targetDist < this.attackRange * pursuitMult;
 
-    if (targetX !== null && targetY !== null && targetDist < this.attackRange * pursuitRange) {
-      const d = dist(this.x, this.y, targetX, targetY);
-      if (d > this.attackRange * 0.9) {
-        const dir = normalize(targetX - this.x, targetY - this.y);
+    if (willEngage && hasTarget && inReachOfAnchor) {
+      const d = dist(this.x, this.y, targetX!, targetY!);
+
+      // EVADE: ranged keeps distance — back away if too close
+      if (stance === 'evade' && isRanged && d < this.attackRange * 0.7) {
+        const awayX = this.x - targetX!, awayY = this.y - targetY!;
+        const awayLen = Math.sqrt(awayX * awayX + awayY * awayY) || 1;
+        this.x += (awayX / awayLen) * this.speed * spdMult * dt;
+        this.y += (awayY / awayLen) * this.speed * spdMult * dt;
+      } else if (d > idealDistFromTarget) {
+        // Approach target
+        const dir = normalize(targetX! - this.x, targetY! - this.y);
         this.x += dir.x * this.speed * spdMult * dt;
         this.y += dir.y * this.speed * spdMult * dt;
       } else if (this.attackCooldown <= 0) {
+        // In range — attack
         shouldAttack = true;
         this.attackCooldown = this.attackRate;
         this.isAtk = true;
         this.atkVisTimer = 0.1;
-        this.showAttackVisual(targetX, targetY);
+        this.showAttackVisual(targetX!, targetY!);
       }
     } else {
+      // Return to formation / anchor
       const d = dist(this.x, this.y, formX, formY);
       if (d > 5) {
         const dir = normalize(formX - this.x, formY - this.y);
-        const spd = Math.min(this.speed * 1.5, d * 3);
+        const spd = Math.min(this.speed * returnSpeedMult, d * 4);
         this.x += dir.x * spd * dt;
         this.y += dir.y * spd * dt;
       }

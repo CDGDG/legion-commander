@@ -21,12 +21,19 @@ export interface DoorChoice {
   description: string;
 }
 
-export type CommandStance = 'defensive' | 'aggressive' | 'follow' | 'spread' | 'charge';
+export type CommandStance =
+  | 'attack' | 'evade' | 'protect' | 'hold'
+  | 'rally' | 'execute' | 'surround' | 'wall';
 export type GamePhase = 'combat' | 'doorSelect' | 'reward' | 'gameOver' | 'victory';
 
 export class GameState {
   phase: GamePhase = 'combat';
-  stance: CommandStance = 'follow';
+  stance: CommandStance = 'attack';
+  // Hold-stance anchor: where the army was when 'hold' was activated
+  holdAnchorX = 0;
+  holdAnchorY = 0;
+  // Rally trigger timestamp for rally animation
+  rallyTriggerTime = -1;
   room = 1;
   ascension = 0;
   totalTime = 0;
