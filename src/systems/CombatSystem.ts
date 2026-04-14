@@ -36,6 +36,21 @@ export class CombatSystem {
 
     this.enemyHash.clear();
     this.soldierHash.clear();
+
+    // ROTATE stance: cap concurrent resters to ~30% of army.
+    // Soldier.__rotateBudget is consumed as each soldier triggers a rest this frame.
+    if (state.stance === 'rotate') {
+      let resting = 0;
+      let aliveCount = 0;
+      for (const s of soldiers) if (s.active && s.alive) {
+        aliveCount++;
+        if (s.restTimer > 0) resting++;
+      }
+      const cap = Math.max(1, Math.ceil(aliveCount * 0.3));
+      Soldier.__rotateBudget = Math.max(0, cap - resting);
+    } else {
+      Soldier.__rotateBudget = 0;
+    }
     for (const e of enemies) if (e.active && e.alive) this.enemyHash.insert(e);
     for (const s of soldiers) if (s.active && s.alive) this.soldierHash.insert(s);
 

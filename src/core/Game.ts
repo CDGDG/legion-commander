@@ -166,6 +166,7 @@ export class Game {
     this.attackRenderer = new AttackRenderer(this.worldContainer);
     this.projectileSystem = new ProjectileSystem(this.worldContainer);
     this.projectileSystem.terrainBlocker = (x, y) => this.roomSystem.isBlocked(x, y);
+    this.waveSystem.terrainBlocker = (x, y) => this.roomSystem.isBlocked(x, y);
     this.combatSystem.fx = this.fxSystem;
     this.combatSystem.attackRenderer = this.attackRenderer;
     this.combatSystem.projectiles = this.projectileSystem;

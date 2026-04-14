@@ -150,24 +150,38 @@ export class WaveSystem {
    * - Lineup phase: spawn only from `faceDir` edge (face-off start).
    * - Otherwise: spawn from any edge (encirclement, like before).
    */
+  /** Optional terrain blocker — used to reject spawn positions inside obstacles. */
+  terrainBlocker: ((x: number, y: number) => boolean) | null = null;
+
   private pickSpawnPosition(state: GameState): { x: number; y: number } {
-    if (state.isLineupPhase) {
-      // Spawn from faceDir edge only — creates a clear front line
-      switch (state.faceDir) {
-        case 'right': return { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
-        case 'left':  return { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
-        case 'down':  return { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MAX_Y };
-        case 'up':    return { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MIN_Y };
+    // Try up to N candidates to avoid spawning inside terrain; fall back to raw position.
+    const tries = 4;
+    for (let k = 0; k < tries; k++) {
+      let pos: { x: number; y: number };
+      if (state.isLineupPhase) {
+        switch (state.faceDir) {
+          case 'right': pos = { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) }; break;
+          case 'left':  pos = { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) }; break;
+          case 'down':  pos = { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MAX_Y }; break;
+          case 'up':    pos = { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MIN_Y }; break;
+          default:      pos = { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y, ROOM_MAX_Y) };
+        }
+      } else {
+        const side = randomInt(0, 3);
+        switch (side) {
+          case 0: pos = { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MIN_Y }; break;
+          case 1: pos = { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MAX_Y }; break;
+          case 2: pos = { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) }; break;
+          default: pos = { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
+        }
       }
+      if (!this.terrainBlocker || !this.terrainBlocker(pos.x, pos.y)) return pos;
     }
-    // All sides (legacy behavior)
-    const side = randomInt(0, 3);
-    switch (side) {
-      case 0: return { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MIN_Y };
-      case 1: return { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MAX_Y };
-      case 2: return { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
-      default: return { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
-    }
+    // All tries blocked — return last position anyway; resolveCollision in next frame fixes it.
+    return state.faceDir === 'right' ? { x: ROOM_MAX_X, y: 0 } :
+           state.faceDir === 'left'  ? { x: ROOM_MIN_X, y: 0 } :
+           state.faceDir === 'up'    ? { x: 0, y: ROOM_MIN_Y } :
+           { x: 0, y: ROOM_MAX_Y };
   }
 
   update(dt: number, playerX: number, playerY: number, state?: GameState): void {

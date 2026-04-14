@@ -20,6 +20,13 @@ const SOLDIER_CONFIGS: Record<SoldierType, SoldierConfig> = {
 };
 
 export class Soldier {
+  /**
+   * Rotate-stance budget: how many NEW rest entries are allowed this frame.
+   * CombatSystem sets this once per frame; soldiers consume it via decrement.
+   * Caps concurrent resters to ~30% of army (prevents full-front collapse).
+   */
+  static __rotateBudget = 0;
+
   x = 0; y = 0;
   hp = 50; maxHp = 50;
   /** Rotate stance: remaining seconds of "resting" (retreats + heals, can't attack) */
@@ -109,11 +116,16 @@ export class Soldier {
     this.attackCooldown -= dt;
 
     // === ROTATE stance: low-HP soldiers auto-retreat to heal ===
+    // Concurrency capped via state.__rotateCap (set in CombatSystem.update): only that many
+    // NEW rests can trigger this frame, preventing full-front collapse.
     if (this.restCooldown > 0) this.restCooldown -= dt;
     if (this.restTimer > 0) this.restTimer -= dt;
     if (stance === 'rotate' && this.restTimer <= 0 && this.restCooldown <= 0 && this.hp / this.maxHp < 0.5) {
-      this.restTimer = 2.0;         // 2s resting
-      this.restCooldown = 8.0;      // can't re-rest for 8s (prevents spam)
+      if (Soldier.__rotateBudget > 0) {
+        Soldier.__rotateBudget--;
+        this.restTimer = 2.0;   // 2s resting
+        this.restCooldown = 8.0; // per-soldier lockout
+      }
     }
     // While resting: retreat toward player, heal, don't attack
     if (this.restTimer > 0) {

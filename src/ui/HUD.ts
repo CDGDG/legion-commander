@@ -34,9 +34,10 @@ export class HUD {
   private roomText: Text;
   private timerText: Text;
 
-  // Center message
+  // Center message (single slot) + queue to avoid losing consecutive announcements
   private centerMsg: Text;
   private centerMsgTimer = 0;
+  private centerMsgQueue: Array<{ text: string; duration: number }> = [];
 
   // Reward UI
   private rewardContainer: Container;
@@ -105,6 +106,12 @@ export class HUD {
   }
 
   showCenterMessage(msg: string, duration = 2): void {
+    // If a message is already showing, queue rather than clobber.
+    if (this.centerMsgTimer > 0.05 && this.centerMsg.visible) {
+      // Cap queue to avoid runaway banner spam
+      if (this.centerMsgQueue.length < 6) this.centerMsgQueue.push({ text: msg, duration });
+      return;
+    }
     this.centerMsg.text = msg;
     this.centerMsg.visible = true;
     this.centerMsgTimer = duration;
@@ -211,7 +218,16 @@ export class HUD {
       this.centerMsg.y = screenH / 2 - 60;
       this.centerMsg.alpha = Math.min(1, this.centerMsgTimer * 2);
       this.centerMsg.scale.set(1 + Math.max(0, 0.3 - this.centerMsgTimer * 0.3));
-      if (this.centerMsgTimer <= 0) this.centerMsg.visible = false;
+      if (this.centerMsgTimer <= 0) {
+        // Pop next queued message, if any
+        if (this.centerMsgQueue.length > 0) {
+          const next = this.centerMsgQueue.shift()!;
+          this.centerMsg.text = next.text;
+          this.centerMsgTimer = next.duration;
+        } else {
+          this.centerMsg.visible = false;
+        }
+      }
     }
 
     // Stance bar (bottom-left)
