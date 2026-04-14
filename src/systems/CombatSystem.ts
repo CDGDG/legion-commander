@@ -16,6 +16,7 @@ export class CombatSystem {
   fx: FXSystem | null = null;
   attackRenderer: AttackRenderer | null = null;
   projectiles: ProjectileSystem | null = null;
+  visualFX: { pulseBloom: (i: number, d: number) => void; triggerSlowMo: (f: number, d: number) => void; setZoom: (s: number, d?: number) => void } | null = null;
 
   update(
     dt: number, player: Player, enemies: Enemy[], soldiers: Soldier[],
@@ -295,6 +296,17 @@ export class CombatSystem {
         enemiesKilled++;
         this.fx?.spawnDeathEffect(e.x, e.y, true);
         sound.enemyDeath();
+        // Boss/elite kill — slow-mo + zoom-in flair
+        if (e.isBoss) {
+          this.visualFX?.triggerSlowMo(0.3, 0.6);
+          this.visualFX?.setZoom(1.25, 0.2);
+          setTimeout(() => this.visualFX?.setZoom(1.0, 0.5), 700);
+          this.fx?.triggerFlash(0xff00ff, 0.4);
+          this.visualFX?.pulseBloom(2.5, 0.5);
+        } else if (e.isElite) {
+          this.visualFX?.triggerSlowMo(0.5, 0.18);
+          this.visualFX?.pulseBloom(1.6, 0.2);
+        }
       } else {
         this.fx?.spawnDamageNumber(e.x, e.y, Math.floor(dmg), isCrit);
       }
@@ -303,11 +315,13 @@ export class CombatSystem {
 
     if (hitAny) {
       sound.hitImpact(isCrit);
-      // Heavy weapons shake more
       const shakeMult = weaponCategory === 'axe' || weaponCategory === 'mace' ? 1.5 : 1.0;
       camera.shake((isCrit ? 5 : 3) * shakeMult, isCrit ? 0.1 : 0.06);
       this.fx?.triggerHitStop(isCrit ? 0.08 : 0.05);
-      if (isCrit) this.fx?.triggerFlash(0xffd700, 0.15);
+      if (isCrit) {
+        this.fx?.triggerFlash(0xffd700, 0.15);
+        this.visualFX?.pulseBloom(1.8, 0.15);
+      }
     }
 
     return { xpGained, enemiesKilled };

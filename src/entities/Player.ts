@@ -34,6 +34,7 @@ export class Player {
   sprite: Sprite;
   weaponGfx: Graphics;
   shadow: Graphics;
+  lightGfx: Graphics; // soft additive light following player
   private textures: CharacterTextures | null = null;
   private facingAngle = 0;
   private facingDir: FacingDir = 'down';
@@ -41,12 +42,25 @@ export class Player {
   private idleTime = 0;
   private hitRecoilTimer = 0;
   private attackVisTimer = 0;
+  lastDashAfterimageTime = 999;
 
   alive = true;
 
   constructor(container: Container) {
     this.shadow = createShadow(14);
     container.addChild(this.shadow);
+
+    // Soft warm light following player (additive)
+    this.lightGfx = new Graphics();
+    this.lightGfx.beginFill(0xffcc66, 0.18);
+    this.lightGfx.drawCircle(0, 0, 90);
+    this.lightGfx.endFill();
+    this.lightGfx.beginFill(0xffe699, 0.12);
+    this.lightGfx.drawCircle(0, 0, 50);
+    this.lightGfx.endFill();
+    this.lightGfx.blendMode = 1; // ADD
+    this.lightGfx.zIndex = 5500;
+    container.addChild(this.lightGfx);
 
     this.gfx = new Graphics();
     container.addChild(this.gfx);
@@ -104,6 +118,7 @@ export class Player {
         this.dashDirX = dirX;
         this.dashDirY = dirY;
         this.dashCooldown = this.dashCooldownMax;
+        this.lastDashAfterimageTime = 0; // spawn trail immediately
         sound.dash();
       }
     }
@@ -139,6 +154,13 @@ export class Player {
     this.sprite.alpha = this.isDashing ? 0.4 : 1;
     this.shadow.alpha = this.isDashing ? 0.15 : 0.3;
     this.gfx.visible = false; // hide placeholder graphics
+
+    // Soft light around player (slight pulse for living feel)
+    this.lightGfx.x = this.x;
+    this.lightGfx.y = this.y + bob;
+    const pulse = 0.95 + Math.sin(this.idleTime * 4) * 0.05;
+    this.lightGfx.scale.set(pulse);
+    this.lightGfx.alpha = this.isDashing ? 1.5 : 1.0;
 
     // Attack visual timer
     if (this.attackVisTimer > 0) {

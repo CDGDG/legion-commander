@@ -13,6 +13,7 @@ import { Screens } from '../ui/Screens';
 import { FXSystem } from '../systems/FXSystem';
 import { AttackRenderer } from '../systems/AttackRenderer';
 import { ProjectileSystem } from '../systems/ProjectileSystem';
+import { VisualFX } from '../systems/VisualFX';
 import { sound } from '../systems/SoundSystem';
 import { submitScore } from '../systems/Leaderboard';
 import { randomRange, randomInt } from '../utils/math';
@@ -70,11 +71,16 @@ export class Game {
   private fxSystem!: FXSystem;
   private attackRenderer!: AttackRenderer;
   private projectileSystem!: ProjectileSystem;
+  private visualFX!: VisualFX;
   private flashGfx!: Graphics;
   private roomClearTimer = 0;
   private doorChoicesShown = false;
   private goldEarned = 0;
   private totalKills = 0;
+  private ambientCooldown = 0;
+  private fpsSampleSum = 0;
+  private fpsSampleCount = 0;
+  private lowQualityMode = false;
   private gameStarted = false;
   private roomCleared = false;
 
@@ -127,6 +133,10 @@ export class Game {
     this.combatSystem.attackRenderer = this.attackRenderer;
     this.combatSystem.projectiles = this.projectileSystem;
 
+    // Cinematic filter stack (bloom, color grade, vignette)
+    this.visualFX = new VisualFX(this.app.stage, this.worldContainer, this.app.screen.width, this.app.screen.height);
+    this.combatSystem.visualFX = this.visualFX;
+
     // Screen flash overlay
     this.flashGfx = new Graphics();
     this.flashGfx.zIndex = 9999;
@@ -167,6 +177,25 @@ export class Game {
 
     this.addVignette();
     this.enterRoom();
+  }
+
+  private spawnAmbientParticle(): void {
+    if (!this.player) return;
+    // Theme based on room number
+    const theme = Math.floor((this.state.room - 1) / 2) % 5;
+    // 0=Dungeon dust, 1=Forest pollen, 2=Lava ember, 3=Ice snow, 4=Graveyard ghost
+    const types: Array<{ type: 'dust' | 'ember' | 'snow' | 'ghost'; color: number; drift: [number, number] }> = [
+      { type: 'dust',  color: 0x665544, drift: [0, -5] },
+      { type: 'dust',  color: 0x88aa55, drift: [0, -3] },
+      { type: 'ember', color: 0xff6622, drift: [0, -25] },
+      { type: 'snow',  color: 0xddeeff, drift: [0, 15] },
+      { type: 'ghost', color: 0x88ffaa, drift: [0, -10] },
+    ];
+    const t = types[theme];
+    // Spawn within room bounds, weighted around player
+    const sx = (Math.random() - 0.5) * 800 + this.player.x * 0.3;
+    const sy = (Math.random() - 0.5) * 500 + this.player.y * 0.3;
+    this.fxSystem.spawnAmbient(sx, sy, t.type, t.color, t.drift[0], t.drift[1]);
   }
 
   private addVignette(): void {
@@ -323,11 +352,15 @@ export class Game {
     this.enterRoom();
   }
 
-  update(dt: number): void {
+  update(dtRaw: number): void {
     if (!this.gameStarted) return;
     if (this.state.phase === 'victory' || this.state.phase === 'gameOver') return;
     if (this.hud.isRewardVisible) return;
     if (this.state.phase === 'doorSelect') return;
+
+    // Apply slow-mo time scale (boss kills, etc)
+    const timeScale = this.visualFX ? this.visualFX.getTimeScale(dtRaw) : 1.0;
+    const dt = dtRaw * timeScale;
 
     this.state.totalTime += dt;
 
@@ -420,6 +453,42 @@ export class Game {
     // FX system
     this.fxSystem.update(dt);
     this.attackRenderer.update(dt);
+    this.visualFX.update(dt);
+
+    // FPS monitor — auto-disable expensive filters if avg FPS drops below 40 over 2s
+    if (dtRaw > 0) {
+      this.fpsSampleSum += 1 / dtRaw;
+      this.fpsSampleCount++;
+      if (this.fpsSampleCount >= 120) {
+        const avgFps = this.fpsSampleSum / this.fpsSampleCount;
+        if (avgFps < 40 && !this.lowQualityMode) {
+          this.lowQualityMode = true;
+          this.visualFX.setLowQuality(true);
+          console.log(`[VisualFX] Low quality mode (avg FPS ${avgFps.toFixed(1)})`);
+        } else if (avgFps > 55 && this.lowQualityMode) {
+          this.lowQualityMode = false;
+          this.visualFX.setLowQuality(false);
+        }
+        this.fpsSampleSum = 0;
+        this.fpsSampleCount = 0;
+      }
+    }
+
+    // Dash afterimage trail
+    if (this.player.isDashing) {
+      this.player.lastDashAfterimageTime += dt;
+      if (this.player.lastDashAfterimageTime > 0.025) {
+        this.fxSystem.spawnAfterimage(this.player.x, this.player.y, 0xffd700);
+        this.player.lastDashAfterimageTime = 0;
+      }
+    }
+
+    // Ambient particles per theme (sparse spawn)
+    this.ambientCooldown -= dt;
+    if (this.ambientCooldown <= 0) {
+      this.ambientCooldown = 0.15 + Math.random() * 0.1;
+      this.spawnAmbientParticle();
+    }
 
     // Screen flash
     const flashA = this.fxSystem.getFlashAlpha();
