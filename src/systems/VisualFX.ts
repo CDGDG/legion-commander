@@ -52,31 +52,8 @@ export class VisualFX {
     // Noise only exists for potential use; DON'T apply to stage by default (per-frame cost)
     this.noise = new NoiseFilter(0.06, Math.random());
 
-    // === VIGNETTE OVERLAY (custom gradient via Graphics) ===
-    this.vignette = this.createVignette(screenW, screenH);
-    this.vignette.zIndex = 9998;
-    this.vignette.eventMode = 'none';
-    this.stage.addChild(this.vignette);
-  }
-
-  /** Smooth vignette that doesn't kill center visibility */
-  private createVignette(w: number, h: number): Graphics {
-    const g = new Graphics();
-    // Four corner darkenings
-    g.beginFill(0x000000, 0.55);
-    g.drawRect(0, 0, w * 0.10, h);
-    g.drawRect(w * 0.90, 0, w * 0.10, h);
-    g.endFill();
-    g.beginFill(0x000000, 0.4);
-    g.drawRect(w * 0.10, 0, w * 0.80, h * 0.08);
-    g.drawRect(w * 0.10, h * 0.92, w * 0.80, h * 0.08);
-    g.endFill();
-    // Subtle color fringe on edges (warm tint)
-    g.beginFill(0x1a0a0a, 0.15);
-    g.drawRect(0, 0, w * 0.04, h);
-    g.drawRect(w * 0.96, 0, w * 0.04, h);
-    g.endFill();
-    return g;
+    // Vignette removed — map fills the screen edge to edge.
+    this.vignette = new Graphics(); // kept as no-op to satisfy field init / destroy() call
   }
 
   applyColorGrade(preset: 'cinematic' | 'boss' | 'victory' | 'neutral' = 'cinematic'): void {
@@ -131,12 +108,7 @@ export class VisualFX {
   resize(w: number, h: number): void {
     this.screenW = w;
     this.screenH = h;
-    this.stage.removeChild(this.vignette);
-    this.vignette.destroy();
-    this.vignette = this.createVignette(w, h);
-    this.vignette.zIndex = 9998;
-    this.vignette.eventMode = 'none';
-    this.stage.addChild(this.vignette);
+    // Vignette removed — nothing to redraw
   }
 
   update(dt: number): void {

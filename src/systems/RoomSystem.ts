@@ -3,8 +3,18 @@ import { RoomTheme, getTheme, getBossTheme } from './ThemeSystem';
 import { randomRange } from '../utils/math';
 import { FONT_MONO } from '../utils/Fonts';
 
-const ROOM_W = 900;
-const ROOM_H = 550;
+// Room size — tuned to fill a typical landscape browser viewport (~1.65:1 ratio)
+const ROOM_W = 1400;
+const ROOM_H = 850;
+// Player/Soldier clamp leaves a small inner margin from the wall
+export const ROOM_PLAYER_HX = ROOM_W / 2 - 20; // 680
+export const ROOM_PLAYER_HY = ROOM_H / 2 - 20; // 405
+// Enemy clamp is slightly looser (they can briefly step on the wall edge)
+export const ROOM_ENEMY_HX = ROOM_W / 2 + 10;  // 710
+export const ROOM_ENEMY_HY = ROOM_H / 2 + 10;  // 435
+// Spawn line — exactly at room edge
+export const ROOM_SPAWN_HX = ROOM_W / 2;       // 700
+export const ROOM_SPAWN_HY = ROOM_H / 2;       // 425
 
 // Obstacle types for room variety
 interface Obstacle {

@@ -227,8 +227,9 @@ export class Soldier {
       }
     }
 
-    this.x = Math.max(-430, Math.min(430, this.x));
-    this.y = Math.max(-260, Math.min(260, this.y));
+    // Room clamp — match RoomSystem ROOM_PLAYER_H{X,Y}
+    this.x = Math.max(-680, Math.min(680, this.x));
+    this.y = Math.max(-405, Math.min(405, this.y));
 
     // Direction
     if (targetX !== null && targetY !== null && targetDist < this.attackRange * 3) {

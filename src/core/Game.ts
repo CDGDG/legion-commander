@@ -1,5 +1,6 @@
 import { Application, Container, Graphics } from 'pixi.js';
 import { Input } from './Input';
+import { TouchInput } from './TouchInput';
 import { Camera } from './Camera';
 import { GameState, SoldierType, RoomRewardType, CommandStance } from './GameState';
 import { STANCES } from '../data/ContentData';
@@ -57,6 +58,7 @@ const SOLDIER_UPGRADES: Record<SoldierType, { label: string; desc: string; apply
 export class Game {
   app: Application;
   private input: Input;
+  touchInput!: TouchInput;
   private camera!: Camera;
   state: GameState;
   private player!: Player;
@@ -92,11 +94,24 @@ export class Game {
     this.screens = new Screens();
     this.input = new Input(app.view as HTMLCanvasElement);
     this.hud.stanceUnlockedChecker = (id: string) => this.screens.isStanceUnlocked(id as any);
+    this.hud.equippedLoadoutProvider = () => this.screens.equippedStances;
 
     // Stage must sort children by zIndex so HUD/reward cards render above world
     app.stage.sortableChildren = true;
     this.hud.container.zIndex = 1000;
     app.stage.addChild(this.hud.container);
+
+    // Touch input overlay (auto-shows on first touch event)
+    this.touchInput = new TouchInput(app.stage, app.screen.width, app.screen.height);
+    this.touchInput.container.zIndex = 1500;
+    // Bridge touch input into the existing Input class
+    this.input.setExternalProvider({
+      getMovement: () => this.touchInput.getMovementVector(),
+      isAttackHeld: () => this.touchInput.isAttackHeld(),
+      consumeDash: () => this.touchInput.consumeDash(),
+      consumeStance: () => this.touchInput.consumeStance(),
+      isEnabled: () => this.touchInput.enabled,
+    });
     app.stage.addChild(this.screens.container);
 
     for (let i = 0; i < 150; i++) this.soldierPool.push(new Soldier());
@@ -178,7 +193,6 @@ export class Game {
     this.app.stage.addChild(this.hud.container);
     this.app.stage.addChild(this.screens.container);
 
-    this.addVignette();
     this.enterRoom();
   }
 
@@ -201,23 +215,6 @@ export class Game {
     this.fxSystem.spawnAmbient(sx, sy, t.type, t.color, t.drift[0], t.drift[1]);
   }
 
-  private addVignette(): void {
-    const w = this.app.screen.width;
-    const h = this.app.screen.height;
-    const vig = new Graphics();
-    vig.beginFill(0x000000, 0.5);
-    vig.drawRect(0, 0, w * 0.12, h);
-    vig.drawRect(w * 0.88, 0, w * 0.12, h);
-    vig.endFill();
-    vig.beginFill(0x000000, 0.4);
-    vig.drawRect(0, 0, w, h * 0.08);
-    vig.drawRect(0, h * 0.92, w, h * 0.08);
-    vig.endFill();
-    vig.zIndex = 9998;
-    vig.eventMode = 'none';
-    this.app.stage.addChild(vig);
-  }
-
   private resize(): void {
     const w = window.innerWidth;
     const h = window.innerHeight;
@@ -232,7 +229,26 @@ export class Game {
     this.roomCleared = false;
     this.roomSystem.drawRoom(this.state.room, this.state.isBossRoom);
     if (this.state.isBossRoom) sound.bossAppear();
-    this.player.reset(0, 100);
+
+    // === FACE-OFF START ===
+    // Pick a random side for the enemy lineup, place player on the OPPOSITE side.
+    // Boss rooms keep the boss centered (no face-off — player still slightly back).
+    const dirs: Array<'left' | 'right' | 'up' | 'down'> = ['left', 'right', 'up', 'down'];
+    this.state.faceDir = this.state.isBossRoom ? 'down' : dirs[Math.floor(Math.random() * dirs.length)];
+
+    // Player position = opposite side of the room from faceDir, leaving room for the lineup gap.
+    // Room is ~1400×850, so place player ~520 from center horizontally / 280 vertically.
+    let px = 0, py = 0;
+    switch (this.state.faceDir) {
+      case 'right': px = -520; py = 0; break;
+      case 'left':  px = 520;  py = 0; break;
+      case 'down':  px = 0;    py = -280; break;
+      case 'up':    px = 0;    py = 280; break;
+    }
+    if (this.state.isBossRoom) { px = 0; py = 150; } // boss: keep legacy spawn
+    this.player.reset(px, py);
+
+    // Soldiers cluster around the player (will form between player and enemy line via AI)
     for (const s of this.soldiers) {
       if (s.active && s.alive) {
         const a = Math.random() * Math.PI * 2;
@@ -242,7 +258,9 @@ export class Game {
       }
     }
     this.waveSystem.startRoom(this.state);
-    this.hud.showCenterMessage(this.state.isBossRoom ? 'BOSS!' : `Room ${this.state.room}`, 1.5);
+    const dirLabel = this.state.isBossRoom ? '' :
+      ({ right: '→', left: '←', up: '↑', down: '↓' } as const)[this.state.faceDir];
+    this.hud.showCenterMessage(this.state.isBossRoom ? 'BOSS!' : `Room ${this.state.room}  ${dirLabel}`, 1.5);
   }
 
   private spawnSoldiers(type: SoldierType, count: number): void {
@@ -376,22 +394,13 @@ export class Game {
 
     this.state.totalTime += dt;
 
-    // Stance change (1-8 keys) - only available stances
-    const stanceKey = this.input.getStanceKey();
-    if (stanceKey) {
-      const stanceMap: Record<number, CommandStance> = {
-        1: 'attack', 2: 'evade', 3: 'protect', 4: 'hold',
-        5: 'rally', 6: 'execute', 7: 'surround', 8: 'wall',
-      };
-      const newStance = stanceMap[stanceKey];
+    // Stance change (Q/W/E = slots 0/1/2) — resolves to equipped loadout
+    const slotIdx = this.input.getStanceKey();
+    if (slotIdx !== null) {
+      const newStance = this.screens.equippedStances[slotIdx] ?? null;
       if (newStance && newStance !== this.state.stance) {
-        // Check if unlocked
         const stanceDef = STANCES.find(s => s.id === newStance);
-        if (!stanceDef) return;
-        const isUnlocked = stanceDef.cost === 0 || this.screens.isStanceUnlocked(newStance);
-        if (!isUnlocked) {
-          this.hud.showCenterMessage(`🔒 ${stanceDef.name} 미해금 (${stanceDef.cost}G)`, 1.0);
-        } else {
+        if (stanceDef) {
           this.state.stance = newStance;
           // Snapshot hold anchor at activation time
           if (newStance === 'hold') {
@@ -404,20 +413,39 @@ export class Game {
           }
           this.hud.showCenterMessage(`${stanceDef.keyword} ${stanceDef.name}`, 0.8);
         }
+      } else if (newStance === null) {
+        const slotKeys = ['Q', 'W', 'E'];
+        this.hud.showCenterMessage(`${slotKeys[slotIdx]} 슬롯 비어있음`, 0.6);
       }
+    }
+
+    // Auto-aim for ALL platforms (Vampire Survivors style): nearest active enemy
+    {
+      let nearest: { x: number; y: number } | null = null;
+      let nd = Infinity;
+      for (const e of this.waveSystem.allEnemies) {
+        if (!e.active || !e.alive) continue;
+        const dx = e.x - this.player.x, dy = e.y - this.player.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nd) { nd = d2; nearest = { x: e.x, y: e.y }; }
+      }
+      this.player.autoAimX = nearest?.x ?? null;
+      this.player.autoAimY = nearest?.y ?? null;
+      this.player.autoAimDist2 = nd;
     }
 
     this.player.update(dt, this.input, this.camera, this.state);
 
-    const attack = this.player.tryAttack(this.input, this.camera);
+    const weaponCat = this.screens.selectedWeapon.category;
+    const isRanged = weaponCat === 'bow' || weaponCat === 'staff';
+    const attack = this.player.tryAttack(this.input, this.camera, isRanged);
     if (attack) {
-      const weaponCat = this.screens.selectedWeapon.category;
       const res = this.combatSystem.handlePlayerAttack(this.player, attack.x, attack.y, attack.angle, this.waveSystem.allEnemies, this.state, this.camera, weaponCat);
       this.goldEarned += res.enemiesKilled * 2; // reduced from 5
       this.totalKills += res.enemiesKilled;
     }
 
-    this.waveSystem.update(dt, this.player.x, this.player.y);
+    this.waveSystem.update(dt, this.player.x, this.player.y, this.state);
 
     const combatRes = this.combatSystem.update(dt, this.player, this.waveSystem.allEnemies, this.soldiers, this.state, this.camera);
     this.goldEarned += combatRes.enemiesKilled; // reduced from 3
@@ -524,7 +552,21 @@ export class Game {
     }
 
     this.roomSystem.update(dt);
-    this.camera.follow(this.player.x, this.player.y, dt);
+
+    // Camera target:
+    // - Lineup phase: target the geometric midpoint between player and enemy edge,
+    //   so both the player formation and the incoming line are framed in shot.
+    // - Combat phase: standard player-follow.
+    let camTargetX = this.player.x;
+    let camTargetY = this.player.y;
+    if (this.state.isLineupPhase && !this.state.isBossRoom) {
+      // Enemy line position by faceDir
+      const enemyEdgeX = this.state.faceDir === 'right' ? 700 : this.state.faceDir === 'left' ? -700 : this.player.x;
+      const enemyEdgeY = this.state.faceDir === 'down'  ? 425 : this.state.faceDir === 'up'   ? -425 : this.player.y;
+      camTargetX = (this.player.x + enemyEdgeX) / 2;
+      camTargetY = (this.player.y + enemyEdgeY) / 2;
+    }
+    this.camera.follow(camTargetX, camTargetY, dt);
     this.camera.update(dt);
 
     const activeEnemies = this.waveSystem.activeEnemies.length;

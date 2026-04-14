@@ -1,7 +1,11 @@
 import { Container } from 'pixi.js';
 import { Enemy, EnemyType } from '../entities/Enemy';
-import { GameState } from '../core/GameState';
+import { GameState, FaceDir } from '../core/GameState';
 import { randomRange, randomInt } from '../utils/math';
+
+// Room spawn bounds — at the visual room edge (matches RoomSystem ROOM_SPAWN_H{X,Y})
+const ROOM_MIN_X = -700, ROOM_MAX_X = 700;
+const ROOM_MIN_Y = -425, ROOM_MAX_Y = 425;
 
 interface RoomEnemies {
   enemies: { type: EnemyType; count: number }[];
@@ -18,6 +22,8 @@ export class WaveSystem {
   private spawnTimer = 0;
   private spawnInterval = 0.08;
   private roomStarted = false;
+  /** Total enemies queued at room start — used to decide when lineup phase ends. */
+  private totalSpawnedThisRoom = 0;
 
   constructor(container: Container) {
     this.container = container;
@@ -73,6 +79,12 @@ export class WaveSystem {
     } else {
       this.startNormalRoom(state);
     }
+
+    this.totalSpawnedThisRoom = this.spawnQueue.length;
+    // Reset face-off phase tracking (Game.enterRoom sets faceDir before this call)
+    state.roomTime = 0;
+    state.isPrepPhase = true;
+    state.isLineupPhase = !state.isBossRoom; // boss rooms skip lineup (boss already centered)
 
     this.roomStarted = true;
     this.spawnTimer = 0.3; // brief delay before spawn starts
@@ -133,8 +145,48 @@ export class WaveSystem {
     return e;
   }
 
-  update(dt: number, playerX: number, playerY: number): void {
+  /**
+   * Pick a spawn position based on current phase.
+   * - Lineup phase: spawn only from `faceDir` edge (face-off start).
+   * - Otherwise: spawn from any edge (encirclement, like before).
+   */
+  private pickSpawnPosition(state: GameState): { x: number; y: number } {
+    if (state.isLineupPhase) {
+      // Spawn from faceDir edge only — creates a clear front line
+      switch (state.faceDir) {
+        case 'right': return { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
+        case 'left':  return { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
+        case 'down':  return { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MAX_Y };
+        case 'up':    return { x: randomRange(ROOM_MIN_X + 20, ROOM_MAX_X - 20), y: ROOM_MIN_Y };
+      }
+    }
+    // All sides (legacy behavior)
+    const side = randomInt(0, 3);
+    switch (side) {
+      case 0: return { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MIN_Y };
+      case 1: return { x: randomRange(ROOM_MIN_X + 10, ROOM_MAX_X - 10), y: ROOM_MAX_Y };
+      case 2: return { x: ROOM_MIN_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
+      default: return { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y + 20, ROOM_MAX_Y - 20) };
+    }
+  }
+
+  update(dt: number, playerX: number, playerY: number, state?: GameState): void {
     if (!this.roomStarted) return;
+
+    // Phase tick (face-off start)
+    if (state) {
+      state.roomTime += dt;
+      // Prep phase: first 2s, enemies move slowly so player can position + pick stance
+      state.isPrepPhase = state.roomTime < 2.0;
+      // Lineup phase ends when (a) 6s elapsed OR (b) all initial spawns are done AND <50% remain
+      if (state.isLineupPhase) {
+        const allSpawned = this.spawnQueue.length === 0;
+        const aliveCount = this.activeEnemies.length;
+        if (state.roomTime > 6.0 || (allSpawned && aliveCount < (this.totalSpawnedThisRoom * 0.5))) {
+          state.isLineupPhase = false;
+        }
+      }
+    }
 
     // Staggered spawning
     this.spawnTimer -= dt;
@@ -143,23 +195,28 @@ export class WaveSystem {
         const info = this.spawnQueue.pop()!;
         const enemy = this.getFromPool();
 
-        // Spawn from room edges
-        const side = randomInt(0, 3);
-        let x = 0, y = 0;
-        switch (side) {
-          case 0: x = randomRange(-350, 350); y = -260; break; // top
-          case 1: x = randomRange(-350, 350); y = 260; break;  // bottom
-          case 2: x = -360; y = randomRange(-240, 240); break;  // left
-          case 3: x = 360; y = randomRange(-240, 240); break;   // right
-        }
+        // Pick position based on current phase
+        const pos = state ? this.pickSpawnPosition(state) : { x: ROOM_MAX_X, y: randomRange(ROOM_MIN_Y, ROOM_MAX_Y) };
+        enemy.init(info.type, pos.x, pos.y, info.hpMult, info.dmgMult, info.elite, this.container);
 
-        enemy.init(info.type, x, y, info.hpMult, info.dmgMult, info.elite, this.container);
+        // During prep phase, slow approach for the first 2s of the room
+        const prepSlow = state?.isPrepPhase ? 0.5 : 1.0;
+        (enemy as any).speedMult = prepSlow;
 
         // Enemies target toward center/player area
         enemy.targetX = playerX + randomRange(-50, 50);
         enemy.targetY = playerY + randomRange(-50, 50);
 
         this.spawnTimer += this.spawnInterval;
+      }
+    }
+
+    // Restore enemy speed once prep phase ends
+    if (state && !state.isPrepPhase) {
+      for (const e of this.enemies) {
+        if ((e as any).speedMult !== undefined && (e as any).speedMult < 1) {
+          (e as any).speedMult = 1;
+        }
       }
     }
 

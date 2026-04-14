@@ -15,6 +15,8 @@ export class HUD {
   container: Container;
   private stanceContainer: Container = new Container();
   stanceUnlockedChecker: ((id: string) => boolean) | null = null;
+  /** Provider for the current equipped loadout (slot 0/1/2 → stance id or null) */
+  equippedLoadoutProvider: (() => (string | null)[]) | null = null;
 
   // Bottom HP bar
   private hpBarContainer: Container;
@@ -210,35 +212,43 @@ export class HUD {
     this.renderStanceBar(state, screenW, screenH);
   }
 
-  private renderStanceBar(state: GameState, _screenW: number, screenH: number): void {
+  private renderStanceBar(state: GameState, screenW: number, screenH: number): void {
     this.stanceContainer.removeChildren();
-    const btnW = 56, btnH = 42, gap = 4;
+    // On touch devices, the right-side stance buttons handle this; skip bottom bar
+    const isTouch = ('ontouchstart' in window) && (window.matchMedia?.('(pointer: coarse)').matches ?? true);
+    if (isTouch && screenW < 900) return;
+
+    const loadout = this.equippedLoadoutProvider ? this.equippedLoadoutProvider() : [];
+    const slotKeys = ['Q', 'W', 'E'];
+    const btnW = 76, btnH = 46, gap = 6;
     const startX = 10;
     const y = screenH - 40 - btnH - 8; // above HP bar
 
-    STANCES.forEach((st, i) => {
-      const unlocked = st.cost === 0 || (this.stanceUnlockedChecker ? this.stanceUnlockedChecker(st.id) : false);
-      const active = state.stance === st.id;
+    for (let i = 0; i < 3; i++) {
+      const stanceId = loadout[i] ?? null;
+      const st = stanceId ? STANCES.find(s => s.id === stanceId) : null;
+      const active = !!st && state.stance === st.id;
       const x = startX + i * (btnW + gap);
 
       const g = new Graphics();
       // Background
-      g.beginFill(active ? st.color : (unlocked ? 0x1a1a2a : 0x0a0a10), active ? 0.9 : 0.7);
-      g.lineStyle(active ? 2.5 : 1, active ? 0xffffff : st.color, active ? 1 : (unlocked ? 0.5 : 0.2));
+      const bgColor = st ? st.color : 0x223344;
+      g.beginFill(active ? bgColor : (st ? 0x1a1a2a : 0x0a0a10), active ? 0.9 : 0.7);
+      g.lineStyle(active ? 2.5 : 1, active ? 0xffffff : bgColor, active ? 1 : (st ? 0.5 : 0.25));
       g.drawRoundedRect(x, y, btnW, btnH, 6);
       g.endFill();
       this.stanceContainer.addChild(g);
 
       // Key label (top-left)
-      const keyLabel = new Text(st.key, new TextStyle({
-        fontFamily: FONT_MONO, fontSize: 10, fill: active ? 0xffffff : (unlocked ? 0xaaaaaa : 0x555555), fontWeight: 'bold',
+      const keyLabel = new Text(slotKeys[i], new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 11, fill: active ? 0xffffff : (st ? 0xeeeeee : 0x666666), fontWeight: 'bold',
       }));
-      keyLabel.x = x + 4; keyLabel.y = y + 3;
+      keyLabel.x = x + 5; keyLabel.y = y + 3;
       this.stanceContainer.addChild(keyLabel);
 
-      // Lock icon or keyword (centered)
-      const centerLabel = new Text(unlocked ? st.keyword : '🔒', new TextStyle({
-        fontFamily: FONT_MONO, fontSize: 18, fill: active ? 0xffffff : (unlocked ? st.color : 0x444444), fontWeight: 'bold',
+      // Keyword (centered) — or "—" if empty
+      const centerLabel = new Text(st ? st.keyword : '—', new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 18, fill: active ? 0xffffff : (st ? st.color : 0x445566), fontWeight: 'bold',
       }));
       centerLabel.anchor.set(0.5);
       centerLabel.x = x + btnW / 2;
@@ -246,14 +256,14 @@ export class HUD {
       this.stanceContainer.addChild(centerLabel);
 
       // Name label (bottom)
-      const nameLabel = new Text(st.name, new TextStyle({
-        fontFamily: FONT_MONO, fontSize: 9, fill: active ? 0xffffff : (unlocked ? 0x999999 : 0x555555),
+      const nameLabel = new Text(st ? st.name : '비어있음', new TextStyle({
+        fontFamily: FONT_MONO, fontSize: 9, fill: active ? 0xffffff : (st ? 0x999999 : 0x556677),
       }));
       nameLabel.anchor.set(0.5, 1);
       nameLabel.x = x + btnW / 2;
       nameLabel.y = y + btnH - 2;
       this.stanceContainer.addChild(nameLabel);
-    });
+    }
   }
 
   showReward(

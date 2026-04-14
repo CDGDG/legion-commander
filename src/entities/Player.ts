@@ -34,7 +34,6 @@ export class Player {
   sprite: Sprite;
   weaponGfx: Graphics;
   shadow: Graphics;
-  lightGfx: Graphics; // soft additive light following player
   private textures: CharacterTextures | null = null;
   private facingAngle = 0;
   private facingDir: FacingDir = 'down';
@@ -49,18 +48,6 @@ export class Player {
   constructor(container: Container) {
     this.shadow = createShadow(14);
     container.addChild(this.shadow);
-
-    // Soft warm light following player (additive)
-    this.lightGfx = new Graphics();
-    this.lightGfx.beginFill(0xffcc66, 0.18);
-    this.lightGfx.drawCircle(0, 0, 90);
-    this.lightGfx.endFill();
-    this.lightGfx.beginFill(0xffe699, 0.12);
-    this.lightGfx.drawCircle(0, 0, 50);
-    this.lightGfx.endFill();
-    this.lightGfx.blendMode = 1; // ADD
-    this.lightGfx.zIndex = 5500;
-    container.addChild(this.lightGfx);
 
     this.gfx = new Graphics();
     container.addChild(this.gfx);
@@ -88,6 +75,12 @@ export class Player {
     if (frame) this.sprite.texture = frame;
   }
 
+  /** Auto-targeting position (set externally each frame — nearest enemy) */
+  autoAimX: number | null = null;
+  autoAimY: number | null = null;
+  /** Distance to nearest enemy (squared, for auto-attack range check) */
+  autoAimDist2: number = Infinity;
+
   update(dt: number, input: Input, camera: Camera, state: GameState): void {
     if (!this.alive) return;
 
@@ -97,8 +90,17 @@ export class Player {
     if (this.dashCooldown > 0) this.dashCooldown -= dt;
     if (this.attackCooldown > 0) this.attackCooldown -= dt;
 
-    const world = camera.screenToWorld(input.mouseX, input.mouseY);
-    this.facingAngle = angle(this.x, this.y, world.x, world.y);
+    // Auto-aim: face nearest enemy if any, otherwise face movement direction
+    if (this.autoAimX !== null && this.autoAimY !== null) {
+      this.facingAngle = angle(this.x, this.y, this.autoAimX, this.autoAimY);
+    } else {
+      const m = input.getMovementVector();
+      if (m.x !== 0 || m.y !== 0) {
+        this.facingAngle = Math.atan2(m.y, m.x);
+      }
+    }
+    // (camera is no longer used for aim, kept in signature for compat)
+    void camera;
 
     if (this.isDashing) {
       this.dashTimer -= dt;
@@ -110,7 +112,8 @@ export class Player {
       this.x += move.x * this.speed * dt;
       this.y += move.y * this.speed * dt;
 
-      if (input.isKeyDown(' ') && this.dashCooldown <= 0) {
+      // Dash: spacebar (edge) on desktop OR touch dash button
+      if (this.dashCooldown <= 0 && input.consumeDashTrigger()) {
         const dirX = move.x !== 0 || move.y !== 0 ? move.x : Math.cos(this.facingAngle);
         const dirY = move.x !== 0 || move.y !== 0 ? move.y : Math.sin(this.facingAngle);
         this.isDashing = true;
@@ -118,13 +121,14 @@ export class Player {
         this.dashDirX = dirX;
         this.dashDirY = dirY;
         this.dashCooldown = this.dashCooldownMax;
-        this.lastDashAfterimageTime = 0; // spawn trail immediately
+        this.lastDashAfterimageTime = 0;
         sound.dash();
       }
     }
 
-    this.x = Math.max(-430, Math.min(430, this.x));
-    this.y = Math.max(-260, Math.min(260, this.y));
+    // Room clamp — match RoomSystem ROOM_PLAYER_H{X,Y}
+    this.x = Math.max(-680, Math.min(680, this.x));
+    this.y = Math.max(-405, Math.min(405, this.y));
 
     // Facing direction
     const deg = this.facingAngle * 180 / Math.PI;
@@ -155,13 +159,6 @@ export class Player {
     this.shadow.alpha = this.isDashing ? 0.15 : 0.3;
     this.gfx.visible = false; // hide placeholder graphics
 
-    // Soft light around player (slight pulse for living feel)
-    this.lightGfx.x = this.x;
-    this.lightGfx.y = this.y + bob;
-    const pulse = 0.95 + Math.sin(this.idleTime * 4) * 0.05;
-    this.lightGfx.scale.set(pulse);
-    this.lightGfx.alpha = this.isDashing ? 1.5 : 1.0;
-
     // Attack visual timer
     if (this.attackVisTimer > 0) {
       this.attackVisTimer -= dt;
@@ -169,10 +166,20 @@ export class Player {
     }
   }
 
-  tryAttack(input: Input, camera: Camera): { x: number; y: number; angle: number } | null {
+  /**
+   * Auto-attack: fires whenever cooldown is ready AND a target is within range.
+   * Vampire Survivors style — no input needed.
+   * For mace (360° sweep), fires whenever any enemy is in range.
+   * For ranged (bow/staff), fires at a generous range multiplier (3x).
+   */
+  tryAttack(_input: Input, _camera: Camera, isRanged: boolean = false): { x: number; y: number; angle: number } | null {
     if (!this.alive || this.isDashing) return null;
-    if (!input.isMouseDown()) return null;
     if (this.attackCooldown > 0) return null;
+    if (this.autoAimX === null || this.autoAimY === null) return null;
+
+    // Range check: melee uses attackRange × 1.2 buffer; ranged uses 3× (matches projectile range)
+    const effectiveRange = isRanged ? this.attackRange * 3 : this.attackRange * 1.2;
+    if (this.autoAimDist2 > effectiveRange * effectiveRange) return null;
 
     this.attackCooldown = this.attackRate;
     this.isAttacking = true;
@@ -181,9 +188,11 @@ export class Player {
 
     const dir = normalize(Math.cos(this.facingAngle), Math.sin(this.facingAngle));
 
-    // Lunge forward slightly on attack
-    this.x += dir.x * 12;
-    this.y += dir.y * 12;
+    // Lunge forward slightly on melee attack only
+    if (!isRanged) {
+      this.x += dir.x * 12;
+      this.y += dir.y * 12;
+    }
 
     return {
       x: this.x + dir.x * this.attackRange * 0.6,

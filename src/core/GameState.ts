@@ -25,6 +25,8 @@ export type CommandStance =
   | 'attack' | 'evade' | 'protect' | 'hold'
   | 'rally' | 'execute' | 'surround' | 'wall';
 export type GamePhase = 'combat' | 'doorSelect' | 'reward' | 'gameOver' | 'victory';
+/** Direction the player is facing the enemy from at room start. Spawn rules use the opposite edge. */
+export type FaceDir = 'left' | 'right' | 'up' | 'down';
 
 export class GameState {
   phase: GamePhase = 'combat';
@@ -37,6 +39,16 @@ export class GameState {
   room = 1;
   ascension = 0;
   totalTime = 0;
+
+  // === Face-off start ===
+  /** Side the enemy is on at room start. Player spawns on opposite side. */
+  faceDir: FaceDir = 'right';
+  /** Time elapsed in current room (resets per room). Used to gate phases. */
+  roomTime = 0;
+  /** True for the first ~2s of a room — enemies move at half speed (preparation phase). */
+  isPrepPhase = false;
+  /** True until the lineup wave is cleared OR roomTime > N — after this, enemies spawn from all sides. */
+  isLineupPhase = true;
 
   // Rooms per region before boss
   readonly roomsPerBoss = 5;

@@ -11,7 +11,28 @@ if ('serviceWorker' in navigator && (import.meta as any).env?.PROD) {
   });
 }
 
+/** Unlock Web Audio on first user gesture (iOS Safari requirement). */
+function setupAudioUnlock() {
+  const unlock = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (ctx.state === 'suspended') ctx.resume();
+      // brief silent buffer to fully unlock
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(ctx.destination); src.start(0);
+    } catch { /* ignore */ }
+    window.removeEventListener('touchstart', unlock);
+    window.removeEventListener('mousedown', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('touchstart', unlock, { once: true, passive: false });
+  window.addEventListener('mousedown', unlock, { once: true });
+  window.addEventListener('keydown', unlock, { once: true });
+}
+
 async function main() {
+  setupAudioUnlock();
   // Wait for web fonts to load so initial render isn't garbled on Windows
   await waitForFontsReady();
 

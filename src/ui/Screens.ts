@@ -102,6 +102,8 @@ export class Screens {
   private soldierUnlocks: SoldierUnlock[] = SOLDIER_UNLOCKS;
   private armorUnlocks: Map<string, boolean> = new Map();
   private stanceUnlocks: Map<string, boolean> = new Map();
+  /** Equipped stance loadout — exactly 3 slots, mapped to Q/W/E. Defaults: attack/evade/protect. */
+  equippedStances: (CommandStance | null)[] = ['attack', 'evade', 'protect'];
   selectedWeapon: WeaponDef = WEAPONS[0];
   equippedArmor: Map<string, string> = new Map(); // slot -> armorId
   playerName: string = '';
@@ -154,6 +156,13 @@ export class Screens {
             if (unlocked) this.stanceUnlocks.set(id, true);
           }
         }
+        if (Array.isArray(save.equippedStances) && save.equippedStances.length === 3) {
+          // Validate each entry is a known stance id (or null)
+          this.equippedStances = save.equippedStances.map((id: unknown) => {
+            if (id === null || id === undefined) return null;
+            return STANCES.find(s => s.id === id) ? (id as CommandStance) : null;
+          });
+        }
         if (save.selectedWeapon) {
           const w = this.weapons.find(wp => wp.id === save.selectedWeapon);
           if (w && w.unlocked) this.selectedWeapon = w;
@@ -180,7 +189,34 @@ export class Screens {
       soldiers: soldierMap, selectedWeapon: this.selectedWeapon.id,
       armor: armorMap, equippedArmor: equippedMap,
       stances: stanceMap,
+      equippedStances: this.equippedStances,
     }));
+  }
+
+  /** Toggle equip: equip if a free slot exists, unequip if already equipped, else replace slot 0 (FIFO-ish). */
+  toggleStanceEquip(id: CommandStance): void {
+    const idx = this.equippedStances.indexOf(id);
+    if (idx >= 0) {
+      // Already equipped → unequip
+      this.equippedStances[idx] = null;
+    } else {
+      // Equip in first empty slot, otherwise replace slot 0 (rotates)
+      const empty = this.equippedStances.indexOf(null);
+      if (empty >= 0) {
+        this.equippedStances[empty] = id;
+      } else {
+        // Shift slots: drop oldest (slot 0), shift others left, put new at slot 2
+        this.equippedStances[0] = this.equippedStances[1];
+        this.equippedStances[1] = this.equippedStances[2];
+        this.equippedStances[2] = id;
+      }
+    }
+    this.save();
+  }
+
+  /** True if the given stance is currently in the equipped loadout. */
+  isStanceEquipped(id: CommandStance): boolean {
+    return this.equippedStances.includes(id);
   }
 
   isStanceUnlocked(id: CommandStance): boolean {
@@ -450,21 +486,77 @@ export class Screens {
         );
       });
     } else if (this.currentTab === 'stances') {
+      // === Header: show 3 equipped slots (Q / W / E) ===
+      const slotKeys = ['Q', 'W', 'E'];
+      const slotW = (contentW - 28) / 3;
+      const slotY = contentY + 6;
+      const slotH = 38;
+      for (let i = 0; i < 3; i++) {
+        const sx = contentX + 6 + i * slotW + (i > 0 ? 4 : 0);
+        const sw = slotW - 4;
+        const eq = this.equippedStances[i];
+        const eqDef = eq ? STANCES.find(s => s.id === eq) : null;
+        const g = new Graphics();
+        g.beginFill(eqDef ? eqDef.color : 0x111122, eqDef ? 0.85 : 0.4);
+        g.lineStyle(2, eqDef ? 0xffffff : 0x445566, eqDef ? 0.9 : 0.5);
+        g.drawRoundedRect(sx, slotY, sw, slotH, 6);
+        g.endFill();
+        g.eventMode = 'static';
+        g.cursor = eqDef ? 'pointer' : 'default';
+        if (eqDef) {
+          g.on('pointerdown', () => {
+            this.toggleStanceEquip(eqDef.id);
+            this.showTitle(screenW, screenH, onStart);
+          });
+          g.on('pointerover', () => { g.tint = 0xddddff; });
+          g.on('pointerout', () => { g.tint = 0xffffff; });
+        }
+        this.container.addChild(g);
+        // Key label
+        const kt = new Text(slotKeys[i], new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: 0xffffff, fontWeight: 'bold' }));
+        kt.x = sx + 6; kt.y = slotY + 4;
+        this.container.addChild(kt);
+        // Stance content
+        const inner = eqDef
+          ? `${eqDef.keyword}  ${eqDef.name}`
+          : '비어있음';
+        const it = new Text(inner, new TextStyle({ fontFamily: FONT_MONO, fontSize: 13, fill: eqDef ? 0xffffff : 0x778899, fontWeight: 'bold' }));
+        it.anchor.set(0.5);
+        it.x = sx + sw / 2; it.y = slotY + slotH / 2;
+        this.container.addChild(it);
+        if (eqDef) {
+          const hint = new Text('탭 → 해제', new TextStyle({ fontFamily: FONT_MONO, fontSize: 9, fill: 0xffffff }));
+          hint.anchor.set(1, 1);
+          hint.x = sx + sw - 4; hint.y = slotY + slotH - 2;
+          hint.alpha = 0.7;
+          this.container.addChild(hint);
+        }
+      }
+
+      // === Stance list (below loadout slots) ===
+      const listOffsetY = slotH + 12; // shift list down by header height
       STANCES.forEach((st, i) => {
         if (i < scrollOff || i >= scrollOff + maxVisible) return;
-        const y = contentY + 6 + (i - scrollOff) * (itemH + 6);
+        const y = contentY + 6 + listOffsetY + (i - scrollOff) * (itemH + 6);
         const owned = st.cost === 0 || this.stanceUnlocks.get(st.id) === true;
+        const equipped = this.isStanceEquipped(st.id);
+        const slotIdx = this.equippedStances.indexOf(st.id);
+        const slotLabel = slotIdx >= 0 ? `[${slotKeys[slotIdx]}]` : '';
+        const action = !owned ? '' : (equipped ? '해제' : '장착');
         this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
-          `[${st.key}키] ${st.keyword} ${st.name}`,
+          `${equipped ? slotLabel + ' ' : ''}${st.keyword} ${st.name}`,
           `${st.description} | 포기: ${st.sacrifice}`,
-          owned ? 'UNLOCKED' : '',
+          action,
           owned ? 0 : st.cost,
-          st.color, owned, false,
+          st.color, owned, equipped,
           () => {
             if (!owned && this.gold >= st.cost) {
               this.gold -= st.cost;
               this.stanceUnlocks.set(st.id, true);
               this.save();
+              this.showTitle(screenW, screenH, onStart);
+            } else if (owned) {
+              this.toggleStanceEquip(st.id);
               this.showTitle(screenW, screenH, onStart);
             }
           }
@@ -496,8 +588,8 @@ export class Screens {
     btnText.x = screenW / 2; btnText.y = btnY + 22;
     this.container.addChild(btnText);
 
-    // Controls hint
-    const hint = new Text('WASD: Move | Mouse: Attack | Space: Dash | 1-5: Command', new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0x555555 }));
+    // Controls hint — auto-attack + arrow-key movement + Q/W/E loadout
+    const hint = new Text('방향키: 이동 | Space: 대시 | Q W E: 전략 (3개 장착)  ⚔ 공격 자동 (가장 가까운 적)', new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0x77aa77 }));
     hint.anchor.set(0.5);
     hint.x = screenW / 2; hint.y = screenH - 10;
     this.container.addChild(hint);

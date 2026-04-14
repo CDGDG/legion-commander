@@ -146,12 +146,14 @@ export class Enemy {
 
     if (d > this.attackRange) {
       const dir = normalize(tx - this.x, ty - this.y);
-      this.x += dir.x * this.speed * dt;
-      this.y += dir.y * this.speed * dt;
+      const sm = (this as any).speedMult ?? 1;
+      this.x += dir.x * this.speed * sm * dt;
+      this.y += dir.y * this.speed * sm * dt;
     }
 
-    this.x = Math.max(-440, Math.min(440, this.x));
-    this.y = Math.max(-270, Math.min(270, this.y));
+    // Room clamp — match RoomSystem ROOM_ENEMY_H{X,Y}
+    this.x = Math.max(-710, Math.min(710, this.x));
+    this.y = Math.max(-435, Math.min(435, this.y));
 
     // Direction
     const dx2 = tx - this.x, dy2 = ty - this.y;
