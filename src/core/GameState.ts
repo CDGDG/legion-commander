@@ -23,7 +23,8 @@ export interface DoorChoice {
 
 export type CommandStance =
   | 'attack' | 'evade' | 'protect' | 'hold'
-  | 'rally' | 'execute' | 'surround' | 'wall';
+  | 'rally' | 'execute' | 'surround' | 'wall'
+  | 'frenzy' | 'harass' | 'rotate';
 export type GamePhase = 'combat' | 'doorSelect' | 'reward' | 'gameOver' | 'victory';
 /** Direction the player is facing the enemy from at room start. Spawn rules use the opposite edge. */
 export type FaceDir = 'left' | 'right' | 'up' | 'down';

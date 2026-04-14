@@ -232,7 +232,9 @@ export class Player {
     const synergy = state.getSynergyBonus();
     if (synergy.dodgeChance > 0 && Math.random() < synergy.dodgeChance) return;
     const reduction = synergy.defense / 100;
-    const finalDmg = amount * (1 - reduction);
+    // FRENZY stance: player takes +30% damage (risk trade-off)
+    const stanceMult = state.stance === 'frenzy' ? 1.30 : 1.0;
+    const finalDmg = amount * (1 - reduction) * stanceMult;
     this.hp -= finalDmg;
     this.hitRecoilTimer = 0.15;
     if (this.hp <= 0) {

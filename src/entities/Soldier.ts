@@ -22,6 +22,10 @@ const SOLDIER_CONFIGS: Record<SoldierType, SoldierConfig> = {
 export class Soldier {
   x = 0; y = 0;
   hp = 50; maxHp = 50;
+  /** Rotate stance: remaining seconds of "resting" (retreats + heals, can't attack) */
+  restTimer = 0;
+  /** Rotate stance: internal cooldown before this soldier can trigger a new rest */
+  restCooldown = 0;
   speed = 110; damage = 7;
   attackRange = 25; attackRate = 0.7;
   attackCooldown = 0; radius = 7;
@@ -104,6 +108,27 @@ export class Soldier {
     if (!this.alive || !this.active) return false;
     this.attackCooldown -= dt;
 
+    // === ROTATE stance: low-HP soldiers auto-retreat to heal ===
+    if (this.restCooldown > 0) this.restCooldown -= dt;
+    if (this.restTimer > 0) this.restTimer -= dt;
+    if (stance === 'rotate' && this.restTimer <= 0 && this.restCooldown <= 0 && this.hp / this.maxHp < 0.5) {
+      this.restTimer = 2.0;         // 2s resting
+      this.restCooldown = 8.0;      // can't re-rest for 8s (prevents spam)
+    }
+    // While resting: retreat toward player, heal, don't attack
+    if (this.restTimer > 0) {
+      const dx = playerX - this.x, dy = playerY - this.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      // Retreat only if far from player
+      if (len > 40) {
+        this.x += (dx / len) * this.speed * 2.5 * dt;
+        this.y += (dy / len) * this.speed * 2.5 * dt;
+      }
+      // Heal 15% of maxHp per second (30% total over 2s). Codex-advised: limit healing
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.15 * dt);
+      return false; // skip rest of AI (no attack)
+    }
+
     if (this.atkVisTimer > 0) {
       this.atkVisTimer -= dt;
       this.atkGfx.alpha = this.atkVisTimer / 0.1;
@@ -182,6 +207,24 @@ export class Soldier {
         // Melee form a wall in front of player; ranged stay behind
         formRange = isMelee ? 50 : 30;
         pursuitMult = isMelee ? 2 : 1;
+        break;
+      // === NEW STANCES ===
+      case 'frenzy':
+        // Reckless rush — ignore formation, max aggression
+        formRange = 120;
+        pursuitMult = 15;
+        willEngage = true;
+        break;
+      case 'harass':
+        // Focus CC over kills — moderate range, less aggressive approach
+        formRange = 60;
+        pursuitMult = 6;
+        idealDistFromTarget = this.attackRange * 0.95; // stay a bit further out
+        break;
+      case 'rotate':
+        // Active engagement, but low-HP soldiers retreat to heal (handled below in update)
+        formRange = 60;
+        pursuitMult = 5;
         break;
     }
 

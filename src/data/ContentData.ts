@@ -237,7 +237,8 @@ export const ASCENSION_LEVELS: AscensionLevel[] = [
 // =============================================================
 export type CommandStance =
   | 'attack' | 'evade' | 'protect' | 'hold'
-  | 'rally' | 'execute' | 'surround' | 'wall';
+  | 'rally' | 'execute' | 'surround' | 'wall'
+  | 'frenzy' | 'harass' | 'rotate';
 
 export interface StanceDef {
   id: CommandStance;
@@ -304,6 +305,26 @@ export const STANCES: StanceDef[] = [
     description: '탱커(검병/창병)가 플레이어 전방에 방어선 형성. 원거리는 뒤에서 자유 사격.',
     sacrifice: '추격 포기 — 정적 방어 대형 유지',
     armySpeedMult: 0.8, armyAtkMult: 1.0, armyDefMult: 1.6, cost: 400, color: 0xcccccc,
+  },
+
+  // === NEW: RISK / UTIL / SUSTAIN (Phase 3, unlockable) ===
+  {
+    id: 'frenzy', key: '9', name: '광란!', keyword: '狂',
+    description: '진형 무시 돌진. 적에 들이박음. 플레이어 받는 피해 +30%.',
+    sacrifice: '안전 포기 — 플레이어 받는 피해 30% 증가',
+    armySpeedMult: 1.7, armyAtkMult: 1.5, armyDefMult: 0.6, cost: 350, color: 0xff2244,
+  },
+  {
+    id: 'harass', key: '0', name: '견제!', keyword: '妨',
+    description: '병사 공격 시 둔화·기절 부여. 위험 적(bomber/charger/boss) 우선.',
+    sacrifice: '데미지 20% 감소. 보스/엘리트엔 CC 효율 절반.',
+    armySpeedMult: 1.1, armyAtkMult: 0.8, armyDefMult: 1.1, cost: 300, color: 0x22aaff,
+  },
+  {
+    id: 'rotate', key: '-', name: '순환!', keyword: '巡',
+    description: 'HP 50% 이하 병사 자동 후퇴 회복 (2초 전투불가). 전열 지속 재정비.',
+    sacrifice: '집중 화력 포기 — 일부 병사 주기적 이탈',
+    armySpeedMult: 1.0, armyAtkMult: 0.9, armyDefMult: 1.2, cost: 350, color: 0x44ff88,
   },
 ];
 

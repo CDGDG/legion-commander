@@ -113,22 +113,34 @@ export class CombatSystem {
       const nearest = chosen;
       if (didAttack && nearest) {
         const isRanged = s.type === 'archer' || s.type === 'mage' || s.type === 'priest';
+        // HARASS stance: 20% less damage, applies CC (slow → stun on repeat).
+        // On bosses/elites CC effect is halved.
+        const isHarass = state.stance === 'harass';
+        const dmg = isHarass ? s.damage * 0.8 : s.damage;
         if (isRanged && this.projectiles) {
-          // Fire projectile instead of instant damage
           const projType: ProjectileType =
             s.type === 'archer' ? 'arrow' :
             s.type === 'mage' ? 'magic_bolt' : 'heal_orb';
-          this.projectiles.spawn(s.x, s.y, nearest.x, nearest.y, projType, s.damage, true);
+          this.projectiles.spawn(s.x, s.y, nearest.x, nearest.y, projType, dmg, true);
+          if (isHarass) {
+            // Ranged harass: marks target instead of stun (apply mark so team damage rises)
+            const markDur = nearest.isBoss || nearest.isElite ? 0.5 : 1.0;
+            nearest.status.markedTimer = Math.max(nearest.status.markedTimer ?? 0, markDur);
+          }
         } else {
-          // Melee: instant damage
-          if (nearest.takeDamage(s.damage)) {
+          if (nearest.takeDamage(dmg)) {
             xpGained += nearest.xp;
             enemiesKilled++;
             this.fx?.spawnDeathEffect(nearest.x, nearest.y, true);
             sound.enemyDeath();
           } else {
             this.fx?.spawnHitSparks(nearest.x, nearest.y, 3, 0x4488ff);
-            this.fx?.spawnDamageNumber(nearest.x, nearest.y, s.damage);
+            this.fx?.spawnDamageNumber(nearest.x, nearest.y, dmg);
+          }
+          // HARASS melee: short stun on non-elite, slight slow (via stun 0.15s) on elite/boss
+          if (isHarass && nearest.alive) {
+            const stunDur = nearest.isBoss || nearest.isElite ? 0.15 : 0.4;
+            nearest.status.stunTimer = Math.max(nearest.status.stunTimer ?? 0, stunDur);
           }
         }
       }
