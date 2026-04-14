@@ -57,6 +57,8 @@ export class ProjectileSystem {
   private pool: Projectile[] = [];
   private gfx: Graphics;
   private container: Container;
+  /** Optional terrain blocker — projectiles die on blocked tiles. */
+  terrainBlocker: ((x: number, y: number) => boolean) | null = null;
 
   constructor(container: Container) {
     this.container = container;
@@ -147,6 +149,14 @@ export class ProjectileSystem {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.rotation = Math.atan2(p.vy, p.vx);
+
+      // Terrain collision
+      if (this.terrainBlocker && this.terrainBlocker(p.x, p.y)) {
+        p.active = false;
+        this.pool.push(p);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
 
       // Trail
       p.trail.push({ x: p.x, y: p.y });

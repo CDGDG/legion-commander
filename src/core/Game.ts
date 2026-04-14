@@ -165,6 +165,7 @@ export class Game {
     this.fxSystem = new FXSystem(this.worldContainer);
     this.attackRenderer = new AttackRenderer(this.worldContainer);
     this.projectileSystem = new ProjectileSystem(this.worldContainer);
+    this.projectileSystem.terrainBlocker = (x, y) => this.roomSystem.isBlocked(x, y);
     this.combatSystem.fx = this.fxSystem;
     this.combatSystem.attackRenderer = this.attackRenderer;
     this.combatSystem.projectiles = this.projectileSystem;
@@ -476,6 +477,14 @@ export class Game {
     }
 
     this.player.update(dt, this.input, this.camera, this.state);
+    // Terrain collision — push entities out of obstacles
+    this.roomSystem.resolveCollision(this.player, this.player.radius);
+    for (const s of this.soldiers) {
+      if (s.active && s.alive) this.roomSystem.resolveCollision(s, s.radius);
+    }
+    for (const e of this.waveSystem.allEnemies) {
+      if (e.active && e.alive) this.roomSystem.resolveCollision(e, e.radius);
+    }
 
     const weaponCat = this.screens.selectedWeapon.category;
     const isRanged = weaponCat === 'bow' || weaponCat === 'staff';

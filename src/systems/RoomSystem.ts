@@ -210,20 +210,32 @@ export class RoomSystem {
   }
 
   private generateObstacles(room: number, isBoss: boolean, t: RoomTheme): void {
-    if (isBoss) return; // boss rooms are open arenas
-    const layouts = [
-      // 0: 4 pillars
-      [{ x: -150, y: -80, w: 25, h: 25, type: 'pillar' as const }, { x: 150, y: -80, w: 25, h: 25, type: 'pillar' as const },
-       { x: -150, y: 80, w: 25, h: 25, type: 'pillar' as const }, { x: 150, y: 80, w: 25, h: 25, type: 'pillar' as const }],
-      // 1: center rock
-      [{ x: -20, y: -20, w: 40, h: 40, type: 'rock' as const }],
-      // 2: corridor
-      [{ x: -300, y: -40, w: 200, h: 20, type: 'rock' as const }, { x: 100, y: 40, w: 200, h: 20, type: 'rock' as const }],
-      // 3: scattered
-      [{ x: -200, y: -100, w: 30, h: 30, type: 'rock' as const }, { x: 200, y: 100, w: 30, h: 30, type: 'rock' as const },
-       { x: -100, y: 80, w: 20, h: 20, type: 'pillar' as const }, { x: 100, y: -80, w: 20, h: 20, type: 'pillar' as const }],
-      // 4: open (no obstacles)
+    if (isBoss) { this.obstacles = []; return; } // boss rooms are open arenas
+    // Layouts tuned to 1400×850 room. Obstacles are collidable blocks.
+    // Variety: 4 pillars / center rock / corridor / scattered / two walls / open
+    const layouts: Obstacle[][] = [
+      // 0 — four symmetric pillars (cover corridors)
+      [{ x: -280, y: -140, w: 40, h: 40, type: 'pillar' }, { x: 280, y: -140, w: 40, h: 40, type: 'pillar' },
+       { x: -280, y:  140, w: 40, h: 40, type: 'pillar' }, { x: 280, y:  140, w: 40, h: 40, type: 'pillar' }],
+      // 1 — center boulder (force flanking)
+      [{ x: 0, y: 0, w: 90, h: 90, type: 'rock' }],
+      // 2 — corridor: two horizontal walls with gap
+      [{ x: -450, y: -80, w: 260, h: 30, type: 'rock' }, { x: 170, y: -80, w: 260, h: 30, type: 'rock' },
+       { x: -450, y:  80, w: 260, h: 30, type: 'rock' }, { x: 170, y:  80, w: 260, h: 30, type: 'rock' }],
+      // 3 — scattered cover
+      [{ x: -380, y: -200, w: 50, h: 50, type: 'rock' }, { x: 380, y: 200, w: 50, h: 50, type: 'rock' },
+       { x: -150, y: 150, w: 30, h: 30, type: 'pillar' }, { x: 150, y: -150, w: 30, h: 30, type: 'pillar' },
+       { x: 0, y: 260, w: 40, h: 40, type: 'rock' }],
+      // 4 — chokepoint: big central wall with flank paths
+      [{ x: -150, y: -40, w: 120, h: 30, type: 'rock' }, { x: 150, y: 40, w: 120, h: 30, type: 'rock' }],
+      // 5 — open field (no obstacles)
       [],
+      // 6 — diagonal pillars (breaks straight lanes)
+      [{ x: -200, y: -100, w: 40, h: 40, type: 'pillar' }, { x: 0, y: 0, w: 40, h: 40, type: 'pillar' },
+       { x: 200, y: 100, w: 40, h: 40, type: 'pillar' }],
+      // 7 — fortress: 4 corner rocks
+      [{ x: -450, y: -250, w: 60, h: 60, type: 'rock' }, { x: 450, y: -250, w: 60, h: 60, type: 'rock' },
+       { x: -450, y:  250, w: 60, h: 60, type: 'rock' }, { x: 450, y:  250, w: 60, h: 60, type: 'rock' }],
     ];
 
     const layout = layouts[room % layouts.length];
@@ -386,4 +398,41 @@ export class RoomSystem {
   hideDoors(): void { this.doorGfx.removeChildren(); }
   static get ROOM_W() { return ROOM_W; }
   static get ROOM_H() { return ROOM_H; }
+
+  /**
+   * Push an entity out of any obstacle it's overlapping.
+   * Mutates x/y in place. Used by Player/Soldier/Enemy every frame.
+   * Returns true if any correction was applied.
+   */
+  resolveCollision(pos: { x: number; y: number }, radius: number): boolean {
+    let corrected = false;
+    for (const o of this.obstacles) {
+      if (o.type === 'pit') continue; // pits don't block movement
+      const halfW = o.w / 2 + radius;
+      const halfH = o.h / 2 + radius;
+      const dx = pos.x - o.x;
+      const dy = pos.y - o.y;
+      if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
+        // Compute overlap on each axis, push out along smaller overlap
+        const overlapX = halfW - Math.abs(dx);
+        const overlapY = halfH - Math.abs(dy);
+        if (overlapX < overlapY) {
+          pos.x += dx < 0 ? -overlapX : overlapX;
+        } else {
+          pos.y += dy < 0 ? -overlapY : overlapY;
+        }
+        corrected = true;
+      }
+    }
+    return corrected;
+  }
+
+  /** Check if a point is inside any solid obstacle (used by projectile collision). */
+  isBlocked(x: number, y: number): boolean {
+    for (const o of this.obstacles) {
+      if (o.type === 'pit') continue;
+      if (Math.abs(x - o.x) < o.w / 2 && Math.abs(y - o.y) < o.h / 2) return true;
+    }
+    return false;
+  }
 }
