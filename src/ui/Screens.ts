@@ -105,6 +105,7 @@ export class Screens {
   playerName: string = '';
   private cachedScores: ScoreEntry[] = [];
   private scoresLoading = false;
+  private scoresLoaded = false; // true after at least one fetch attempt completes
   private onStartGame: (() => void) | null = null;
 
   constructor() {
@@ -402,13 +403,21 @@ export class Screens {
     header.y = contentY + 10;
     this.container.addChild(header);
 
-    // Load scores asynchronously
-    if (!this.scoresLoading && this.cachedScores.length === 0) {
+    // Load scores asynchronously — only once per session unless manually refreshed
+    if (!this.scoresLoading && !this.scoresLoaded) {
       this.scoresLoading = true;
       getTopScores(50).then(scores => {
         this.cachedScores = scores;
         this.scoresLoading = false;
-        if (this.container.visible) this.showTitle(screenW, screenH, onStart);
+        this.scoresLoaded = true;
+        // Only re-render if ranking tab is still active and not mid-transition
+        if (this.container.visible && this.currentTab === 'ranking') {
+          this.showTitle(screenW, screenH, onStart);
+        }
+      }).catch(err => {
+        console.warn('Leaderboard load failed:', err);
+        this.scoresLoading = false;
+        this.scoresLoaded = true; // mark as attempted; don't retry on every render
       });
     }
 
