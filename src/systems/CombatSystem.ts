@@ -9,9 +9,16 @@ import { AttackRenderer, WeaponCategory } from './AttackRenderer';
 import { ProjectileSystem, ProjectileType } from './ProjectileSystem';
 import { sound } from './SoundSystem';
 import { dist, normalize } from '../utils/math';
+import { statusDamageMult, applyMark, applyStun } from './SynergySystem';
 
 export class CombatSystem {
   private enemyHash = new SpatialHash<Enemy>(64);
+  /** One-frame pulse: set when axe execute rage triggers. Player reads + clears. */
+  axeRageTrigger: { strong: boolean } | null = null;
+
+  private statusDmgMult(e: Enemy): number {
+    return statusDamageMult(e.status);
+  }
   private soldierHash = new SpatialHash<Soldier>(64);
   fx: FXSystem | null = null;
   attackRenderer: AttackRenderer | null = null;
@@ -248,13 +255,17 @@ export class CombatSystem {
   handlePlayerAttack(
     player: Player, hitX: number, hitY: number, hitAngle: number,
     enemies: Enemy[], state: GameState, camera: Camera,
-    weaponCategory: WeaponCategory = 'sword'
+    weaponCategory: WeaponCategory = 'sword',
+    weaponSynergy?: import('./SynergySystem').WeaponSynergyBonus
   ): { xpGained: number; enemiesKilled: number } {
     let xpGained = 0;
     let enemiesKilled = 0;
     const synergy = state.getSynergyBonus();
+    const wsyn = weaponSynergy; // may be undefined for legacy callers
     const isCrit = Math.random() < synergy.critChance;
-    const dmg = player.attackDamage * (isCrit ? 2 : 1);
+    // Apply weapon-synergy dmg multiplier
+    const baseDmg = player.attackDamage * (isCrit ? 2 : 1);
+    const dmg = baseDmg * (wsyn?.dmgMult ?? 1);
     const color = isCrit ? 0xff8844 : 0xffd700;
 
     // Bow and Staff fire projectiles instead of melee
@@ -264,22 +275,33 @@ export class CombatSystem {
         const projRange = player.attackRange * 3; // projectiles travel further
         const tx = player.x + Math.cos(hitAngle) * projRange;
         const ty = player.y + Math.sin(hitAngle) * projRange;
-        this.projectiles.spawn(player.x, player.y, tx, ty, pType, dmg, true);
+        const speedMult = wsyn?.projectileSpeedMult ?? 1;
+        const proj = this.projectiles.spawn(player.x, player.y, tx, ty, pType, dmg, true);
+        if (proj && speedMult !== 1) {
+          proj.vx *= speedMult;
+          proj.vy *= speedMult;
+        }
+        // Signal to ProjectileSystem: this projectile should leave a bow mark on hit
+        if (proj && weaponCategory === 'bow' && wsyn?.bowMark) {
+          (proj as any).applyMark = true;
+        }
         sound.playerSlash();
       }
       return { xpGained, enemiesKilled };
     }
 
     // Melee weapons: use AttackRenderer for weapon-specific animation
-    this.attackRenderer?.spawnAttack(weaponCategory, player.x, player.y, hitAngle, player.attackRange, color);
+    // Apply radius multiplier (mace/sword grow with synergy)
+    const synRange = player.attackRange * (wsyn?.radiusMult ?? 1);
+    this.attackRenderer?.spawnAttack(weaponCategory, player.x, player.y, hitAngle, synRange, color);
     sound.playerSlash();
 
     // Determine hit area based on weapon category
-    const hitArea = this.getWeaponHitArea(weaponCategory, player.x, player.y, hitAngle, player.attackRange);
+    const hitArea = this.getWeaponHitArea(weaponCategory, player.x, player.y, hitAngle, synRange);
 
     const nearby = this.enemyHash.query(hitArea.cx, hitArea.cy, hitArea.radius + 40);
     let hitAny = false;
-    const kbMult = this.getKnockbackMult(weaponCategory);
+    const kbMult = this.getKnockbackMult(weaponCategory) * (wsyn?.knockbackMult ?? 1);
 
     for (const e of nearby) {
       if (!this.isInHitArea(e.x, e.y, e.radius, hitArea, weaponCategory, player.x, player.y, hitAngle)) continue;
@@ -291,11 +313,27 @@ export class CombatSystem {
       e.x += kbDir.x * kbForce;
       e.y += kbDir.y * kbForce;
 
-      if (e.takeDamage(dmg)) {
+      // Status-based damage amplification (marked, vuln)
+      const statusMult = this.statusDmgMult(e);
+      const finalDmg = dmg * statusMult;
+
+      // === Synergy: mace vuln mark on knocked enemies ===
+      if (weaponCategory === 'mace' && wsyn?.maceVulnMark) {
+        e.status.vulnTimer = Math.max(e.status.vulnTimer ?? 0, 2.0);
+      }
+
+      // Pre-kill check for axe execute rage (low-HP target)
+      const wasLowHp = e.hp / e.maxHp < 0.30;
+
+      if (e.takeDamage(finalDmg)) {
         xpGained += e.xp;
         enemiesKilled++;
         this.fx?.spawnDeathEffect(e.x, e.y, true);
         sound.enemyDeath();
+        // === Synergy: axe execute rage (kill on low-HP target) ===
+        if (weaponCategory === 'axe' && wasLowHp && wsyn?.axeRage && wsyn.axeRage !== 'none') {
+          this.axeRageTrigger = { strong: wsyn.axeRage === 'strong' };
+        }
         // Boss/elite kill — slow-mo + zoom-in flair
         if (e.isBoss) {
           this.visualFX?.triggerSlowMo(0.3, 0.6);
@@ -321,6 +359,35 @@ export class CombatSystem {
       if (isCrit) {
         this.fx?.triggerFlash(0xffd700, 0.15);
         this.visualFX?.pulseBloom(1.8, 0.15);
+      }
+
+      // === Synergy: sword shockwave on hit ===
+      if (weaponCategory === 'sword' && wsyn?.swordShockwave) {
+        const swRadius = 80 + (wsyn.radiusMult - 1) * 80;
+        const swDmg = dmg * 0.30;
+        for (const e2 of this.enemyHash.query(player.x + Math.cos(hitAngle) * 40, player.y + Math.sin(hitAngle) * 40, swRadius)) {
+          if (e2 === null || !e2.active || !e2.alive) continue;
+          if (dist(e2.x, e2.y, player.x, player.y) > swRadius) continue;
+          const sd = swDmg * this.statusDmgMult(e2);
+          if (e2.takeDamage(sd)) {
+            xpGained += e2.xp; enemiesKilled++;
+            this.fx?.spawnDeathEffect(e2.x, e2.y, true);
+          } else {
+            this.fx?.spawnDamageNumber(e2.x, e2.y, Math.floor(sd));
+          }
+        }
+        this.fx?.spawnHitSparks(player.x + Math.cos(hitAngle) * 30, player.y + Math.sin(hitAngle) * 30, 14, 0xffd700);
+      }
+
+      // === Synergy: mace end-of-sweep stun (radius around player) ===
+      if (weaponCategory === 'mace' && wsyn?.maceEndStun) {
+        const stunR = hitArea.radius * 1.0;
+        for (const e2 of this.enemyHash.query(player.x, player.y, stunR)) {
+          if (!e2.active || !e2.alive) continue;
+          if (dist(e2.x, e2.y, player.x, player.y) > stunR) continue;
+          applyStun(e2.status, 0.3);
+          applyMark(e2.status, 1.2); // briefly marked so team can follow up
+        }
       }
     }
 

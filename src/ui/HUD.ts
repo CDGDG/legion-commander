@@ -3,6 +3,7 @@ import { GameState, SoldierType } from '../core/GameState';
 import { Player } from '../entities/Player';
 import { FONT_MONO } from '../utils/Fonts';
 import { STANCES } from '../data/ContentData';
+import { WeaponSynergyBonus } from '../systems/SynergySystem';
 
 const STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: 0xffffff });
 const TITLE_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
@@ -14,9 +15,12 @@ const SYNERGY_COLORS: Record<SoldierType, number> = {
 export class HUD {
   container: Container;
   private stanceContainer: Container = new Container();
+  private synergyContainer2: Container = new Container();
   stanceUnlockedChecker: ((id: string) => boolean) | null = null;
   /** Provider for the current equipped loadout (slot 0/1/2 → stance id or null) */
   equippedLoadoutProvider: (() => (string | null)[]) | null = null;
+  /** Provider for the current weapon synergy snapshot. */
+  synergyProvider: (() => WeaponSynergyBonus | null) | null = null;
 
   // Bottom HP bar
   private hpBarContainer: Container;
@@ -48,6 +52,8 @@ export class HUD {
     this.hpBarContainer = new Container();
     this.container.addChild(this.hpBarContainer);
     this.container.addChild(this.stanceContainer);
+
+    this.container.addChild(this.synergyContainer2);
 
     this.hpBarBg = new Graphics();
     this.hpBarContainer.addChild(this.hpBarBg);
@@ -210,6 +216,52 @@ export class HUD {
 
     // Stance bar (bottom-left)
     this.renderStanceBar(state, screenW, screenH);
+    // Weapon synergy indicator (top-right under timer)
+    this.renderSynergyBar(screenW);
+  }
+
+  private renderSynergyBar(screenW: number): void {
+    this.synergyContainer2.removeChildren();
+    if (!this.synergyProvider) return;
+    const syn = this.synergyProvider();
+    if (!syn || !syn.partner) return;
+
+    const partnerLabels: Record<string, string> = {
+      swordsman: '검병', spearman: '창병', archer: '궁수', mage: '마법사', priest: '성직자',
+    };
+    const activeFlags: string[] = [];
+    if (syn.swordShockwave) activeFlags.push('충격파');
+    if (syn.swordSimulSwing) activeFlags.push('동시참격');
+    if (syn.axeRage === 'weak') activeFlags.push('광폭');
+    if (syn.axeRage === 'strong') activeFlags.push('광폭++');
+    if (syn.bowMark) activeFlags.push('표식');
+    if (syn.bowArrowRain) activeFlags.push('화살비');
+    if (syn.maceVulnMark) activeFlags.push('취약');
+    if (syn.maceEndStun) activeFlags.push('광역기절');
+
+    const partnerName = partnerLabels[syn.partner] ?? syn.partner;
+    const dmgBonus = Math.round((syn.dmgMult - 1) * 100);
+    const line1 = `⚡ ${partnerName} ×${syn.partnerCount}${dmgBonus > 0 ? `  DMG +${dmgBonus}%` : ''}`;
+    const line2 = activeFlags.length > 0 ? `◉ ${activeFlags.join(' · ')}` : (syn.nextUnlock ? `다음: ${syn.nextThreshold}명 → ${syn.nextUnlock}` : '');
+
+    const x = screenW - 300;
+    const y = 34;
+
+    const bg = new Graphics();
+    bg.beginFill(0x0a0a14, 0.65);
+    bg.lineStyle(1, 0x5577aa, 0.4);
+    bg.drawRoundedRect(x - 6, y - 4, 294, line2 ? 40 : 22, 4);
+    bg.endFill();
+    this.synergyContainer2.addChild(bg);
+
+    const t1 = new Text(line1, new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: 0xffd060, fontWeight: 'bold' }));
+    t1.x = x; t1.y = y;
+    this.synergyContainer2.addChild(t1);
+    if (line2) {
+      const t2 = new Text(line2, new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: activeFlags.length > 0 ? 0x88ffcc : 0x99aacc }));
+      t2.x = x; t2.y = y + 16;
+      this.synergyContainer2.addChild(t2);
+    }
   }
 
   private renderStanceBar(state: GameState, screenW: number, screenH: number): void {

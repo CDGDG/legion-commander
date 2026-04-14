@@ -30,6 +30,8 @@ export class Enemy {
   type: EnemyType = 'grunt';
   alive = true; active = false;
   isElite = false; isBoss = false;
+  /** Status effect bag (synergy-applied marks / vulnerabilities / stuns) */
+  status: { markedTimer?: number; vulnTimer?: number; stunTimer?: number } = {};
 
   gfx: Graphics;
   sprite: Sprite;
@@ -74,6 +76,10 @@ export class Enemy {
     this.targetsPlayer = type === 'charger';
     this.isElite = elite;
     this.alive = true; this.active = true;
+    // Reset status bag on init (pooled enemies may retain old state)
+    this.status.markedTimer = 0;
+    this.status.vulnTimer = 0;
+    this.status.stunTimer = 0;
 
     this.sprite.visible = true;
     this.sprite.scale.set(elite ? 0.38 : 0.28);
@@ -140,6 +146,17 @@ export class Enemy {
     if (!this.alive || !this.active) return;
     this.attackCooldown -= dt;
 
+    // Tick status timers
+    if (this.status.markedTimer && this.status.markedTimer > 0) this.status.markedTimer -= dt;
+    if (this.status.vulnTimer   && this.status.vulnTimer   > 0) this.status.vulnTimer   -= dt;
+    if (this.status.stunTimer   && this.status.stunTimer   > 0) this.status.stunTimer   -= dt;
+
+    // If stunned, skip movement/attack this frame
+    if ((this.status.stunTimer ?? 0) > 0) {
+      this.sprite.tint = 0x88aaff; // blue tint while stunned
+      return;
+    }
+
     const tx = this.targetsPlayer ? playerX : this.targetX;
     const ty = this.targetsPlayer ? playerY : this.targetY;
     const d = dist(this.x, this.y, tx, ty);
@@ -149,6 +166,15 @@ export class Enemy {
       const sm = (this as any).speedMult ?? 1;
       this.x += dir.x * this.speed * sm * dt;
       this.y += dir.y * this.speed * sm * dt;
+    }
+
+    // Visual tints for status effects (priority: stun > marked > vuln)
+    if ((this.status.markedTimer ?? 0) > 0) {
+      this.sprite.tint = 0xffaaff; // pink (marked)
+    } else if ((this.status.vulnTimer ?? 0) > 0) {
+      this.sprite.tint = 0xffcc88; // amber (vuln)
+    } else {
+      this.sprite.tint = 0xffffff;
     }
 
     // Room clamp — match RoomSystem ROOM_ENEMY_H{X,Y}

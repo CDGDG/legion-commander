@@ -81,6 +81,30 @@ export class Player {
   /** Distance to nearest enemy (squared, for auto-attack range check) */
   autoAimDist2: number = Infinity;
 
+  // === SYNERGY: AXE RAGE (temporary buff from execute synergy) ===
+  /** Remaining seconds of attack-speed rage */
+  private rageTimer = 0;
+  /** Attack speed multiplier while in rage (1.0 = no bonus) */
+  private rageAtkSpeedMult = 1;
+  /** Move speed multiplier while in rage */
+  private rageMoveSpeedMult = 1;
+
+  /** Trigger axe execute rage (called from Game after an execute kill) */
+  triggerRage(strong: boolean): void {
+    const dur = strong ? 1.0 : 0.5;
+    this.rageTimer = Math.max(this.rageTimer, dur);
+    this.rageAtkSpeedMult = strong ? 2.0 : 1.5;
+    this.rageMoveSpeedMult = strong ? 1.5 : 1.3;
+  }
+
+  /** Current effective attack rate (lower = faster) */
+  get effectiveAttackRate(): number {
+    return this.rageTimer > 0 ? this.attackRate / this.rageAtkSpeedMult : this.attackRate;
+  }
+  get effectiveSpeed(): number {
+    return this.rageTimer > 0 ? this.speed * this.rageMoveSpeedMult : this.speed;
+  }
+
   update(dt: number, input: Input, camera: Camera, state: GameState): void {
     if (!this.alive) return;
 
@@ -89,6 +113,7 @@ export class Player {
 
     if (this.dashCooldown > 0) this.dashCooldown -= dt;
     if (this.attackCooldown > 0) this.attackCooldown -= dt;
+    if (this.rageTimer > 0) this.rageTimer -= dt;
 
     // Auto-aim: face nearest enemy if any, otherwise face movement direction
     if (this.autoAimX !== null && this.autoAimY !== null) {
@@ -109,8 +134,9 @@ export class Player {
       if (this.dashTimer <= 0) this.isDashing = false;
     } else {
       const move = input.getMovementVector();
-      this.x += move.x * this.speed * dt;
-      this.y += move.y * this.speed * dt;
+      const moveSpeed = this.rageTimer > 0 ? this.speed * this.rageMoveSpeedMult : this.speed;
+      this.x += move.x * moveSpeed * dt;
+      this.y += move.y * moveSpeed * dt;
 
       // Dash: spacebar (edge) on desktop OR touch dash button
       if (this.dashCooldown <= 0 && input.consumeDashTrigger()) {
@@ -181,7 +207,7 @@ export class Player {
     const effectiveRange = isRanged ? this.attackRange * 3 : this.attackRange * 1.2;
     if (this.autoAimDist2 > effectiveRange * effectiveRange) return null;
 
-    this.attackCooldown = this.attackRate;
+    this.attackCooldown = this.rageTimer > 0 ? this.attackRate / this.rageAtkSpeedMult : this.attackRate;
     this.isAttacking = true;
     this.attackVisTimer = 0.3;
     this.updateFrame();

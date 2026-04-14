@@ -18,6 +18,7 @@ import { VisualFX } from '../systems/VisualFX';
 import { sound } from '../systems/SoundSystem';
 import { submitScore } from '../systems/Leaderboard';
 import { randomRange, randomInt } from '../utils/math';
+import { computeSynergy, WeaponSynergyBonus, NEUTRAL_SYNERGY } from '../systems/SynergySystem';
 
 const SOLDIER_TYPES: SoldierType[] = ['swordsman', 'spearman', 'archer', 'mage', 'priest'];
 const SOLDIER_NAMES: Record<SoldierType, string> = {
@@ -85,6 +86,17 @@ export class Game {
   private lowQualityMode = false;
   private gameStarted = false;
   private roomCleared = false;
+  // === SYNERGY ===
+  /** Cached synergy bonus — recomputed only when dirty flag is set. */
+  private synergy: WeaponSynergyBonus = { ...NEUTRAL_SYNERGY };
+  /** Marked dirty when army composition or weapon changes. */
+  private synergyDirty = true;
+  /** Track which synergy thresholds have ever been announced — for one-time banner. */
+  private synergyBannerShown = new Set<string>();
+  /** Internal cooldowns for burst effects (seconds). */
+  private arrowRainCooldown = 0;
+  /** Attack-counter for bow mark (not every arrow needs a mark, every Nth). */
+  private bowAttackCounter = 0;
 
   constructor(app: Application) {
     this.app = app;
@@ -95,6 +107,7 @@ export class Game {
     this.input = new Input(app.view as HTMLCanvasElement);
     this.hud.stanceUnlockedChecker = (id: string) => this.screens.isStanceUnlocked(id as any);
     this.hud.equippedLoadoutProvider = () => this.screens.equippedStances;
+    this.hud.synergyProvider = () => this.synergy;
 
     // Stage must sort children by zIndex so HUD/reward cards render above world
     app.stage.sortableChildren = true;
@@ -130,6 +143,11 @@ export class Game {
     this.totalKills = 0;
     this.roomClearTimer = 0;
     this.doorChoicesShown = false;
+    // Reset synergy state for a fresh run
+    this.synergy = { ...NEUTRAL_SYNERGY };
+    this.synergyDirty = true;
+    this.synergyBannerShown.clear();
+    this.arrowRainCooldown = 0;
 
     // Clean up old world
     if (this.worldContainer) {
@@ -195,6 +213,29 @@ export class Game {
 
     this.enterRoom();
   }
+
+  /** Emit a one-time banner when a synergy feature flag transitions from false → true. */
+  private checkSynergyBanners(prev: WeaponSynergyBonus, curr: WeaponSynergyBonus): void {
+    const banners: Array<[string, boolean, boolean, string]> = [
+      ['sword.shockwave', prev.swordShockwave, curr.swordShockwave, '⚔ 충격파 발동! (검 + 검병 3)'],
+      ['sword.simul',     prev.swordSimulSwing, curr.swordSimulSwing, '⚔ 동시 참격! (검 + 검병 10)'],
+      ['axe.rage.weak',   prev.axeRage !== 'none', curr.axeRage !== 'none' && prev.axeRage === 'none', '🪓 처형 광폭! (도끼 + 검병)'],
+      ['axe.rage.strong', prev.axeRage === 'strong', curr.axeRage === 'strong', '🪓 처형 광폭 강화! (도끼 + 검병 8)'],
+      ['bow.mark',        prev.bowMark, curr.bowMark, '🏹 표식 시스템! (활 + 궁수 3)'],
+      ['bow.rain',        prev.bowArrowRain, curr.bowArrowRain, '🏹 화살비! (활 + 궁수 8)'],
+      ['mace.vuln',       prev.maceVulnMark, curr.maceVulnMark, '🔨 취약 노출! (둔기 + 검병 3)'],
+      ['mace.stun',       prev.maceEndStun, curr.maceEndStun, '🔨 광역 기절! (둔기 + 검병 8)'],
+    ];
+    for (const [key, was, is, label] of banners) {
+      if (!was && is && !this.synergyBannerShown.has(key)) {
+        this.synergyBannerShown.add(key);
+        this.hud.showCenterMessage(label, 1.4);
+      }
+    }
+  }
+
+  /** Get the current synergy snapshot (read-only). */
+  getSynergy(): WeaponSynergyBonus { return this.synergy; }
 
   private spawnAmbientParticle(): void {
     if (!this.player) return;
@@ -440,9 +481,34 @@ export class Game {
     const isRanged = weaponCat === 'bow' || weaponCat === 'staff';
     const attack = this.player.tryAttack(this.input, this.camera, isRanged);
     if (attack) {
-      const res = this.combatSystem.handlePlayerAttack(this.player, attack.x, attack.y, attack.angle, this.waveSystem.allEnemies, this.state, this.camera, weaponCat);
+      const res = this.combatSystem.handlePlayerAttack(this.player, attack.x, attack.y, attack.angle, this.waveSystem.allEnemies, this.state, this.camera, weaponCat, this.synergy);
       this.goldEarned += res.enemiesKilled * 2; // reduced from 5
       this.totalKills += res.enemiesKilled;
+      // Axe rage synergy: trigger from CombatSystem signal
+      if (this.combatSystem.axeRageTrigger) {
+        this.player.triggerRage(this.combatSystem.axeRageTrigger.strong);
+        this.combatSystem.axeRageTrigger = null;
+      }
+    }
+
+    // === SYNERGY: BOW ARROW RAIN (every 12s, drops 5 arrows on random enemies) ===
+    if (this.arrowRainCooldown > 0) this.arrowRainCooldown -= dt;
+    if (this.synergy.bowArrowRain && this.arrowRainCooldown <= 0 && weaponCat === 'bow') {
+      const activeEnemies = this.waveSystem.allEnemies.filter(e => e.active && e.alive);
+      if (activeEnemies.length > 0) {
+        // Boss room: concentrate all arrows on boss (if present)
+        const boss = activeEnemies.find(e => e.isBoss);
+        const dmgPerArrow = this.player.attackDamage * (this.synergy.dmgMult) * 0.7;
+        for (let i = 0; i < 5; i++) {
+          const target = boss ?? activeEnemies[Math.floor(Math.random() * activeEnemies.length)];
+          // Spawn arrow from sky toward target
+          const sx = target.x + randomRange(-30, 30);
+          const sy = target.y - 300;
+          const proj = this.projectileSystem.spawn(sx, sy, target.x, target.y, 'arrow', dmgPerArrow, true);
+          if (proj && this.synergy.bowMark) proj.applyMark = true;
+        }
+        this.arrowRainCooldown = 12.0;
+      }
     }
 
     this.waveSystem.update(dt, this.player.x, this.player.y, this.state);
@@ -451,8 +517,19 @@ export class Game {
     this.goldEarned += combatRes.enemiesKilled; // reduced from 3
     this.totalKills += combatRes.enemiesKilled;
 
+    // Recompute soldier counts; mark synergy dirty when any changes.
+    let soldierCountsChanged = false;
     for (const type of SOLDIER_TYPES) {
-      this.state.soldierCounts[type] = this.soldiers.filter(s => s.active && s.alive && s.type === type).length;
+      const n = this.soldiers.filter(s => s.active && s.alive && s.type === type).length;
+      if (n !== this.state.soldierCounts[type]) soldierCountsChanged = true;
+      this.state.soldierCounts[type] = n;
+    }
+    if (soldierCountsChanged) this.synergyDirty = true;
+    if (this.synergyDirty) {
+      const prev = this.synergy;
+      this.synergy = computeSynergy(this.screens.selectedWeapon.category, this.state.soldierCounts);
+      this.synergyDirty = false;
+      this.checkSynergyBanners(prev, this.synergy);
     }
 
     // Projectile system

@@ -37,7 +37,7 @@ const PROJ_CONFIGS: Record<ProjectileType, ProjectileConfig> = {
   },
 };
 
-interface Projectile {
+export interface Projectile {
   x: number; y: number;
   vx: number; vy: number;
   type: ProjectileType;
@@ -48,6 +48,8 @@ interface Projectile {
   hitIds: Set<number>; // for piercing, track already-hit targets
   active: boolean;
   rotation: number;
+  /** Synergy flag: this projectile applies a bow mark on hit */
+  applyMark?: boolean;
 }
 
 export class ProjectileSystem {
@@ -82,7 +84,7 @@ export class ProjectileSystem {
     type: ProjectileType,
     damage: number,
     friendly: boolean
-  ): void {
+  ): Projectile {
     const cfg = PROJ_CONFIGS[type];
     const dir = normalize(toX - fromX, toY - fromY);
 
@@ -105,13 +107,15 @@ export class ProjectileSystem {
     proj.hitIds.clear();
     proj.active = true;
     proj.rotation = angle(fromX, fromY, toX, toY);
+    proj.applyMark = false; // reset from pool
 
     this.projectiles.push(proj);
+    return proj;
   }
 
   update(
     dt: number,
-    enemies: { x: number; y: number; radius: number; alive: boolean; active: boolean; takeDamage: (d: number) => boolean; xp: number }[],
+    enemies: { x: number; y: number; radius: number; alive: boolean; active: boolean; takeDamage: (d: number) => boolean; xp: number; status?: { markedTimer?: number } }[],
     soldiers: { x: number; y: number; radius: number; alive: boolean; active: boolean; takeDamage: (d: number) => boolean }[],
     playerX: number, playerY: number, playerRadius: number,
     onEnemyHit: (x: number, y: number, damage: number, killed: boolean, xp: number) => void,
@@ -160,9 +164,21 @@ export class ProjectileSystem {
 
           const d = dist(p.x, p.y, e.x, e.y);
           if (d < e.radius + cfg.size) {
-            const killed = e.takeDamage(p.damage);
-            onEnemyHit(e.x, e.y, p.damage, killed, e.xp);
+            // Apply status-based damage amplification (marked / vuln)
+            let statusMult = 1;
+            const st = e.status as { markedTimer?: number; vulnTimer?: number } | undefined;
+            if (st) {
+              if ((st.markedTimer ?? 0) > 0) statusMult *= 1.20;
+              if ((st.vulnTimer ?? 0) > 0) statusMult *= 1.15;
+            }
+            const finalDmg = Math.floor(p.damage * statusMult);
+            const killed = e.takeDamage(finalDmg);
+            onEnemyHit(e.x, e.y, finalDmg, killed, e.xp);
             p.hitIds.add(ei);
+            // Synergy: bow mark on hit
+            if (p.applyMark && e.status) {
+              e.status.markedTimer = Math.max(e.status.markedTimer ?? 0, 0.8);
+            }
 
             if (cfg.splashRadius > 0) {
               // Splash damage
