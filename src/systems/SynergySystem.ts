@@ -31,6 +31,13 @@ export interface WeaponSynergyBonus {
   bowArrowRain: boolean;         // archer ≥ 8
   maceVulnMark: boolean;         // swordsman ≥ 3
   maceEndStun: boolean;          // swordsman ≥ 8
+  // Phase 2b — staff / spear / dagger
+  staffCircle: boolean;          // mage ≥ 3 (impact creates damage circle)
+  staffChain: boolean;           // mage ≥ 8 (spell chains once)
+  spearLine: boolean;            // spearman ≥ 3 (every 3rd attack adds line shockwave)
+  spearLinePlus: boolean;        // spearman ≥ 6 (line shockwave +50% dmg)
+  daggerMark: boolean;           // archer ≥ 3 (dagger hits mark like bow)
+  daggerMarkCrit: boolean;       // archer ≥ 6 (+15% crit on marked targets)
   // Which soldier type is the "primary synergy partner" for this weapon (for HUD)
   partner: SoldierType | null;
   partnerCount: number;
@@ -45,6 +52,9 @@ export const NEUTRAL_SYNERGY: WeaponSynergyBonus = {
   axeRage: 'none',
   bowMark: false, bowArrowRain: false,
   maceVulnMark: false, maceEndStun: false,
+  staffCircle: false, staffChain: false,
+  spearLine: false, spearLinePlus: false,
+  daggerMark: false, daggerMarkCrit: false,
   partner: null, partnerCount: 0,
   nextThreshold: 0, nextUnlock: '',
 };
@@ -116,7 +126,45 @@ export function computeSynergy(cat: WeaponCategory, counts: SoldierCounts): Weap
         nextThreshold: nx.t, nextUnlock: nx.l,
       };
     }
-    // Phase 2b will add staff/spear/dagger here.
+    case 'staff': {
+      const N = counts.mage;
+      const nx = nextStep(N, { at: 3, label: '마법진' }, { at: 8, label: '체인' });
+      return {
+        ...NEUTRAL_SYNERGY,
+        dmgMult: 1 + Math.sqrt(Math.min(N, 40)) * 0.04, // sqrt curve
+        radiusMult: 1 + Math.sqrt(Math.min(N, 40)) * 0.03,
+        staffCircle: N >= 3,
+        staffChain: N >= 8,
+        partner: 'mage', partnerCount: N,
+        nextThreshold: nx.t, nextUnlock: nx.l,
+      };
+    }
+    case 'spear': {
+      const N = counts.spearman;
+      const capped = Math.min(N, 30);
+      const nx = nextStep(N, { at: 3, label: '관통 라인' }, { at: 6, label: '라인 강화' });
+      return {
+        ...NEUTRAL_SYNERGY,
+        dmgMult: 1 + capped * 0.012, // cap +36%
+        spearLine: N >= 3,
+        spearLinePlus: N >= 6,
+        partner: 'spearman', partnerCount: N,
+        nextThreshold: nx.t, nextUnlock: nx.l,
+      };
+    }
+    case 'dagger': {
+      const N = counts.archer;
+      const capped = Math.min(N, 30);
+      const nx = nextStep(N, { at: 3, label: '표식' }, { at: 6, label: '표식 크리' });
+      return {
+        ...NEUTRAL_SYNERGY,
+        dmgMult: 1 + capped * 0.015, // cap +45%
+        daggerMark: N >= 3,
+        daggerMarkCrit: N >= 6,
+        partner: 'archer', partnerCount: N,
+        nextThreshold: nx.t, nextUnlock: nx.l,
+      };
+    }
     default:
       return { ...NEUTRAL_SYNERGY };
   }

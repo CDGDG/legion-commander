@@ -15,6 +15,8 @@ export class CombatSystem {
   private enemyHash = new SpatialHash<Enemy>(64);
   /** One-frame pulse: set when axe execute rage triggers. Player reads + clears. */
   axeRageTrigger: { strong: boolean } | null = null;
+  /** Rotating counter for spear line shockwave (fires every 3rd attack). */
+  private spearAttackCounter = 0;
 
   private statusDmgMult(e: Enemy): number {
     return statusDamageMult(e.status);
@@ -297,6 +299,11 @@ export class CombatSystem {
         if (proj && weaponCategory === 'bow' && wsyn?.bowMark) {
           (proj as any).applyMark = true;
         }
+        // Staff synergies: enlarge splash + enable chain
+        if (proj && weaponCategory === 'staff') {
+          if (wsyn?.staffCircle) (proj as any).staffCircle = true;
+          if (wsyn?.staffChain) (proj as any).staffChain = true;
+        }
         sound.playerSlash();
       }
       return { xpGained, enemiesKilled };
@@ -399,6 +406,37 @@ export class CombatSystem {
           if (dist(e2.x, e2.y, player.x, player.y) > stunR) continue;
           applyStun(e2.status, 0.3);
           applyMark(e2.status, 1.2); // briefly marked so team can follow up
+        }
+      }
+
+      // === Synergy: spear line shockwave (every 3rd attack, extends behind pierce) ===
+      if (weaponCategory === 'spear' && wsyn?.spearLine) {
+        this.spearAttackCounter = (this.spearAttackCounter + 1) % 3;
+        if (this.spearAttackCounter === 0) {
+          const lineDmg = dmg * (wsyn.spearLinePlus ? 0.75 : 0.5);
+          const cosA = Math.cos(hitAngle), sinA = Math.sin(hitAngle);
+          // Scan a thin strip 2× weapon range along the attack angle
+          const len = player.attackRange * 2.0;
+          for (const e2 of this.enemyHash.query(player.x + cosA * len * 0.5, player.y + sinA * len * 0.5, len)) {
+            if (!e2.active || !e2.alive) continue;
+            const dxe = e2.x - player.x, dye = e2.y - player.y;
+            const along = dxe * cosA + dye * sinA;
+            if (along < 0 || along > len) continue;
+            const perp = Math.abs(-dxe * sinA + dye * cosA);
+            if (perp > 25) continue;
+            const sd = lineDmg * this.statusDmgMult(e2);
+            if (e2.takeDamage(sd)) { xpGained += e2.xp; enemiesKilled++; this.fx?.spawnDeathEffect(e2.x, e2.y, true); }
+            else this.fx?.spawnDamageNumber(e2.x, e2.y, Math.floor(sd));
+          }
+          this.fx?.spawnHitSparks(player.x + cosA * len * 0.5, player.y + sinA * len * 0.5, 10, 0x66ddff);
+        }
+      }
+
+      // === Synergy: dagger mark on hit ===
+      if (weaponCategory === 'dagger' && wsyn?.daggerMark) {
+        for (const e2 of nearby) {
+          if (!this.isInHitArea(e2.x, e2.y, e2.radius, hitArea, weaponCategory, player.x, player.y, hitAngle)) continue;
+          applyMark(e2.status, 0.8);
         }
       }
     }

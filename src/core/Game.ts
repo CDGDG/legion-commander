@@ -226,6 +226,12 @@ export class Game {
       ['bow.rain',        prev.bowArrowRain, curr.bowArrowRain, '🏹 화살비! (활 + 궁수 8)'],
       ['mace.vuln',       prev.maceVulnMark, curr.maceVulnMark, '🔨 취약 노출! (둔기 + 검병 3)'],
       ['mace.stun',       prev.maceEndStun, curr.maceEndStun, '🔨 광역 기절! (둔기 + 검병 8)'],
+      ['staff.circle',    prev.staffCircle, curr.staffCircle, '🔮 마법진! (지팡이 + 마법사 3)'],
+      ['staff.chain',     prev.staffChain,  curr.staffChain,  '🔮 체인 마법! (지팡이 + 마법사 8)'],
+      ['spear.line',      prev.spearLine,   curr.spearLine,   '🗡 관통 라인! (창 + 창병 3)'],
+      ['spear.lineplus',  prev.spearLinePlus, curr.spearLinePlus, '🗡 강화 관통 라인! (창 + 창병 6)'],
+      ['dagger.mark',     prev.daggerMark,  curr.daggerMark,  '🗡 단검 표식! (단검 + 궁수 3)'],
+      ['dagger.markcrit', prev.daggerMarkCrit, curr.daggerMarkCrit, '🗡 표식 크리! (단검 + 궁수 6)'],
     ];
     for (const [key, was, is, label] of banners) {
       if (!was && is && !this.synergyBannerShown.has(key)) {

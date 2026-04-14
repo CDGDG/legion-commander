@@ -50,6 +50,12 @@ export interface Projectile {
   rotation: number;
   /** Synergy flag: this projectile applies a bow mark on hit */
   applyMark?: boolean;
+  /** Synergy flag: staff spell — expand splash radius on impact */
+  staffCircle?: boolean;
+  /** Synergy flag: staff spell — chain to nearest enemy once */
+  staffChain?: boolean;
+  /** Set true after chain has fired once — prevents infinite chaining */
+  staffChainUsed?: boolean;
 }
 
 export class ProjectileSystem {
@@ -191,16 +197,33 @@ export class ProjectileSystem {
             }
 
             if (cfg.splashRadius > 0) {
-              // Splash damage
+              // Staff synergy: enlarge splash if staffCircle active
+              const splashR = p.staffCircle ? cfg.splashRadius * 1.3 : cfg.splashRadius;
               for (const e2 of enemies) {
                 if (!e2.alive || !e2.active || e2 === e) continue;
-                if (dist(p.x, p.y, e2.x, e2.y) < cfg.splashRadius) {
+                if (dist(p.x, p.y, e2.x, e2.y) < splashR) {
                   const k2 = e2.takeDamage(Math.floor(p.damage * 0.5));
                   onEnemyHit(e2.x, e2.y, Math.floor(p.damage * 0.5), k2, e2.xp);
                 }
               }
-              // Explosion visual
-              this.drawExplosion(p.x, p.y, cfg.splashRadius, cfg.color);
+              this.drawExplosion(p.x, p.y, splashR, cfg.color);
+            }
+
+            // Staff chain: spawn a secondary projectile to nearest other enemy (once)
+            if (p.staffChain && !p.staffChainUsed) {
+              let nearest: { x: number; y: number } | null = null;
+              let nd = Infinity;
+              for (const e2 of enemies) {
+                if (!e2.alive || !e2.active || e2 === e) continue;
+                const d2 = (e2.x - p.x) ** 2 + (e2.y - p.y) ** 2;
+                if (d2 < nd && d2 < 140 * 140) { nd = d2; nearest = { x: e2.x, y: e2.y }; }
+              }
+              if (nearest) {
+                const chainDmg = Math.max(1, Math.floor(p.damage * 0.6));
+                const proj2 = this.spawn(p.x, p.y, nearest.x, nearest.y, p.type, chainDmg, true);
+                proj2.staffChainUsed = true; // no further chaining
+                proj2.life = 0.6;
+              }
             }
 
             if (!cfg.piercing) { hit = true; break; }

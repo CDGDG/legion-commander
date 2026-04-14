@@ -238,6 +238,12 @@ export class HUD {
     if (syn.bowArrowRain) activeFlags.push('화살비');
     if (syn.maceVulnMark) activeFlags.push('취약');
     if (syn.maceEndStun) activeFlags.push('광역기절');
+    if (syn.staffCircle) activeFlags.push('마법진');
+    if (syn.staffChain) activeFlags.push('체인');
+    if (syn.spearLine) activeFlags.push('관통 라인');
+    if (syn.spearLinePlus) activeFlags.push('라인++');
+    if (syn.daggerMark) activeFlags.push('단검 표식');
+    if (syn.daggerMarkCrit) activeFlags.push('표식 크리');
 
     const partnerName = partnerLabels[syn.partner] ?? syn.partner;
     const dmgBonus = Math.round((syn.dmgMult - 1) * 100);
