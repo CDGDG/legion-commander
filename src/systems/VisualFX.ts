@@ -46,7 +46,8 @@ export class VisualFX {
     this.colorGrade = new ColorMatrixFilter();
     this.applyColorGrade('cinematic');
 
-    this.worldContainer.filters = [this.bloom as any, this.colorGrade];
+    // Bloom disabled — kept instantiated only so pulseBloom() calls don't crash
+    this.worldContainer.filters = [this.colorGrade];
 
     // Noise only exists for potential use; DON'T apply to stage by default (per-frame cost)
     this.noise = new NoiseFilter(0.06, Math.random());
@@ -157,12 +158,8 @@ export class VisualFX {
     }, duration * 1000);
   }
 
-  /** Toggle expensive filters off if FPS is low. Call from a perf monitor. */
-  setLowQuality(low: boolean): void {
-    if (low) {
-      this.worldContainer.filters = [this.colorGrade];
-    } else {
-      this.worldContainer.filters = [this.bloom as any, this.colorGrade];
-    }
+  /** Toggle expensive filters off if FPS is low. (Bloom permanently disabled per design.) */
+  setLowQuality(_low: boolean): void {
+    this.worldContainer.filters = [this.colorGrade];
   }
 }
