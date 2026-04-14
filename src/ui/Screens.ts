@@ -259,35 +259,100 @@ export class Screens {
       this.container.addChild(tl);
     });
 
-    // === CONTENT AREA ===
-    const contentY = tabY + 38;
-    const contentH = screenH - contentY - 70;
-    const contentW = Math.min(screenW - 40, 700);
+    // === CONTENT AREA (fixed height, scrollable) ===
+    const contentY = tabY + 42;
+    // Fixed comfortable height — don't fill the entire vertical space
+    const contentH = Math.min(screenH - contentY - 120, 420);
+    const contentW = Math.min(screenW - 40, 720);
     const contentX = screenW / 2 - contentW / 2;
-    const itemH = 42;
+    const itemH = 54; // larger, more readable items
 
-    // Content background with scrollable area
+    // Content background
     const contentBg = new Graphics();
     contentBg.beginFill(0x0c0c16);
-    contentBg.lineStyle(1, 0x222233, 0.5);
-    contentBg.drawRoundedRect(contentX, contentY, contentW, contentH, 6);
+    contentBg.lineStyle(1, 0x222233, 0.6);
+    contentBg.drawRoundedRect(contentX, contentY, contentW, contentH, 8);
     contentBg.endFill();
     contentBg.eventMode = 'static';
-    // Scroll support
-    contentBg.on('wheel', (e: any) => {
-      this.scrollOffset = Math.max(0, this.scrollOffset + (e.deltaY > 0 ? 1 : -1));
-      this.showTitle(screenW, screenH, onStart);
-    });
     this.container.addChild(contentBg);
 
-    const maxVisible = Math.floor(contentH / (itemH + 4));
+    // Determine total item count for current tab
+    const totalCount =
+      this.currentTab === 'upgrades' ? this.upgrades.length :
+      this.currentTab === 'weapons' ? this.weapons.length :
+      this.currentTab === 'soldiers' ? this.soldierUnlocks.length :
+      this.currentTab === 'armor' ? ARMOR_UNLOCKS.length :
+      0;
+
+    const maxVisible = Math.floor((contentH - 12) / (itemH + 6));
+    const maxScroll = Math.max(0, totalCount - maxVisible);
+    // Clamp scroll offset in case we switched tabs
+    if (this.scrollOffset > maxScroll) this.scrollOffset = maxScroll;
     const scrollOff = this.scrollOffset;
+
+    // Scroll wheel handler on the whole content area
+    contentBg.on('wheel', (e: any) => {
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const next = Math.max(0, Math.min(maxScroll, this.scrollOffset + dir));
+      if (next !== this.scrollOffset) {
+        this.scrollOffset = next;
+        this.showTitle(screenW, screenH, onStart);
+      }
+    });
+
+    // === SCROLLBAR (visual indicator + draggable-ish) ===
+    if (totalCount > maxVisible) {
+      const sbX = contentX + contentW - 10;
+      const sbY = contentY + 6;
+      const sbH = contentH - 12;
+      // Track
+      const track = new Graphics();
+      track.beginFill(0x1a1a28, 0.8);
+      track.drawRoundedRect(sbX, sbY, 6, sbH, 3);
+      track.endFill();
+      this.container.addChild(track);
+      // Thumb
+      const thumbH = Math.max(20, sbH * (maxVisible / totalCount));
+      const thumbY = sbY + (sbH - thumbH) * (scrollOff / maxScroll);
+      const thumb = new Graphics();
+      thumb.beginFill(0x556677, 0.9);
+      thumb.drawRoundedRect(sbX, thumbY, 6, thumbH, 3);
+      thumb.endFill();
+      this.container.addChild(thumb);
+      // Up/down buttons at top and bottom of scrollbar
+      const makeBtn = (y: number, sign: number) => {
+        const b = new Graphics();
+        b.beginFill(0x333344, 0.8);
+        b.drawRoundedRect(sbX - 2, y, 10, 14, 2);
+        b.endFill();
+        b.lineStyle(0);
+        b.beginFill(0xbbbbcc);
+        if (sign < 0) {
+          b.drawPolygon([sbX + 3, y + 4, sbX - 1, y + 10, sbX + 7, y + 10]);
+        } else {
+          b.drawPolygon([sbX + 3, y + 10, sbX - 1, y + 4, sbX + 7, y + 4]);
+        }
+        b.endFill();
+        b.eventMode = 'static';
+        b.cursor = 'pointer';
+        b.on('pointerdown', () => {
+          const next = Math.max(0, Math.min(maxScroll, this.scrollOffset + sign));
+          if (next !== this.scrollOffset) {
+            this.scrollOffset = next;
+            this.showTitle(screenW, screenH, onStart);
+          }
+        });
+        this.container.addChild(b);
+      };
+      makeBtn(contentY - 2, -1);
+      makeBtn(contentY + contentH - 12, 1);
+    }
 
     if (this.currentTab === 'upgrades') {
       this.upgrades.forEach((u, i) => {
         if (i < scrollOff || i >= scrollOff + maxVisible) return;
         const y = contentY + 6 + (i - scrollOff) * (itemH + 4);
-        this.drawShopItem(contentX + 6, y, contentW - 12, itemH,
+        this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
           u.name, u.description,
           u.currentLevel >= u.maxLevel ? 'MAX' : `Lv.${u.currentLevel}/${u.maxLevel}`,
           u.currentLevel >= u.maxLevel ? 0 : u.cost * (u.currentLevel + 1),
@@ -306,7 +371,7 @@ export class Screens {
         if (i < scrollOff || i >= scrollOff + maxVisible) return;
         const y = contentY + 6 + (i - scrollOff) * (itemH + 4);
         const isEq = this.selectedWeapon.id === w.id;
-        this.drawShopItem(contentX + 6, y, contentW - 12, itemH,
+        this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
           `${w.name}${isEq ? ' ✦' : ''}`, w.description,
           w.unlocked ? (isEq ? 'EQUIPPED' : 'SELECT') : '',
           w.unlocked ? 0 : w.cost, w.color, w.unlocked, isEq,
@@ -324,7 +389,7 @@ export class Screens {
       this.soldierUnlocks.forEach((s, i) => {
         if (i < scrollOff || i >= scrollOff + maxVisible) return;
         const y = contentY + 6 + (i - scrollOff) * (itemH + 4);
-        this.drawShopItem(contentX + 6, y, contentW - 12, itemH,
+        this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
           s.name, s.description,
           s.unlocked ? 'UNLOCKED' : '',
           s.unlocked ? 0 : s.cost, s.color, s.unlocked, false,
@@ -343,7 +408,7 @@ export class Screens {
         const owned = this.armorUnlocks.get(a.id) || false;
         const equipped = this.equippedArmor.get(a.slot) === a.id;
         const slotNames: Record<string, string> = { helmet: '투구', chest: '갑옷', boots: '장화', ring: '반지', necklace: '목걸이' };
-        this.drawShopItem(contentX + 6, y, contentW - 12, itemH,
+        this.drawShopItem(contentX + 6, y, contentW - 28, itemH,
           `[${slotNames[a.slot]}] ${a.name}${equipped ? ' ✦' : ''}`, a.description,
           owned ? (equipped ? 'EQUIPPED' : 'EQUIP') : '',
           owned ? 0 : a.cost, TIER_COLORS[a.tier], owned, equipped,
