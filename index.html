@@ -42,12 +42,60 @@
     }
     .font-preload .a { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
     .font-preload .b { font-family: 'Noto Sans KR', sans-serif; font-weight: 900; }
+
+    /* === Portrait rotation overlay for mobile === */
+    /* Only shown on small-height portrait screens (phones/tablets held vertically) */
+    #rotate-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: #08080f;
+      color: #ffd700;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Noto Sans KR', sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #rotate-overlay .icon {
+      font-size: 72px;
+      margin-bottom: 20px;
+      animation: rotatePhone 1.8s ease-in-out infinite;
+      display: inline-block;
+    }
+    #rotate-overlay h2 {
+      font-size: 22px;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+    #rotate-overlay p {
+      font-size: 14px;
+      color: #aaaaaa;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+    @keyframes rotatePhone {
+      0%, 100% { transform: rotate(0deg); }
+      40%, 60% { transform: rotate(-90deg); }
+    }
+    /* Show overlay when in portrait AND screen is phone-sized (< 800px wide OR < 500px tall in landscape) */
+    @media (orientation: portrait) and (max-width: 900px) {
+      #rotate-overlay { display: flex; }
+      canvas { display: none; }
+    }
   </style>
 </head>
 <body>
   <div class="font-preload" aria-hidden="true">
     <span class="a">LEGION 1234</span>
     <span class="b">군단지휘관 강화</span>
+  </div>
+  <div id="rotate-overlay">
+    <div class="icon">📱</div>
+    <h2>가로 모드로 돌려주세요</h2>
+    <p>Legion Commander는 가로 화면에서 플레이하도록 제작되었습니다.<br/>기기를 가로로 회전시켜주세요.</p>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

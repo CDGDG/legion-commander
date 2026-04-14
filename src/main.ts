@@ -11,6 +11,21 @@ if ('serviceWorker' in navigator && (import.meta as any).env?.PROD) {
   });
 }
 
+/**
+ * Request landscape orientation on mobile (works in fullscreen / PWA modes).
+ * Manifest's "orientation: landscape" handles installed PWA; this is the runtime hint
+ * for browsers that support the Screen Orientation API.
+ */
+function tryLockLandscape() {
+  try {
+    const so = (screen as any).orientation;
+    if (so && typeof so.lock === 'function') {
+      // Only works when page is in fullscreen on some browsers; catch silently if not.
+      so.lock('landscape').catch(() => {});
+    }
+  } catch { /* ignore */ }
+}
+
 /** Unlock Web Audio on first user gesture (iOS Safari requirement). */
 function setupAudioUnlock() {
   const unlock = () => {
@@ -33,6 +48,7 @@ function setupAudioUnlock() {
 
 async function main() {
   setupAudioUnlock();
+  tryLockLandscape();
   // Wait for web fonts to load so initial render isn't garbled on Windows
   await waitForFontsReady();
 

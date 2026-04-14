@@ -98,22 +98,26 @@ export class TouchInput {
     this.joyInner.endFill();
     this.joyInner.x = joyX; this.joyInner.y = joyY;
 
-    // Dash button: bottom-right (now the primary right-thumb action)
-    const dR = Math.min(70, h * 0.18);
-    const dX = w - dR - 30;
-    const dY = h - dR - 60;
+    // Dash button: bottom-right (primary right-thumb action)
+    const dR = Math.min(60, h * 0.16);
+    const dX = w - dR - 24;
+    const dY = h - dR - 52;
     this.drawCircleBtn(this.dashBtn, dX, dY, dR, 0x44aaff, '↯');
 
-    // Stance buttons: 3 wider slots along right edge (Q/W/E)
+    // Stance buttons (Q/W/E) — horizontal row above the HP bar, left of the dash button.
+    // This keeps the middle Y-zone clear of UI so gameplay (enemies, player) stays visible.
     const slotKeys = ['Q', 'W', 'E'];
-    const sBtnW = 50, sBtnH = 50, gap = 8;
-    const sStartX = w - sBtnW - 8;
-    const sStartY = 80;
+    const sBtnW = Math.min(56, (w * 0.5 - 160) / 3); // squeeze between joystick and dash
+    const sBtnH = Math.min(44, h * 0.14);
+    const gap = 6;
+    const totalRowW = sBtnW * 3 + gap * 2;
+    // Center the row between joystick (left cluster) and dash (right cluster).
+    // Joystick occupies up to ~x=170, dash occupies from ~x=w-120.
+    const rowStartX = Math.max(180, (w - totalRowW) / 2 - 40);
+    const rowY = h - sBtnH - 48;
     for (let i = 0; i < 3; i++) {
-      const x = sStartX;
-      const y = sStartY + i * (sBtnH + gap);
-      // Pass slot index (0/1/2) as the touch identifier — Game.ts maps via equippedStances
-      this.drawStanceBtn(this.stanceBtns[i], x, y, sBtnW, sBtnH, i, slotKeys[i]);
+      const x = rowStartX + i * (sBtnW + gap);
+      this.drawStanceBtn(this.stanceBtns[i], x, rowY, sBtnW, sBtnH, i, slotKeys[i]);
     }
   }
 
@@ -224,9 +228,9 @@ export class TouchInput {
     }
 
     // === Dash button area (right thumb — primary action) ===
-    const dR = Math.min(70, this.screenH * 0.18);
-    const dX = this.screenW - dR - 30;
-    const dY = this.screenH - dR - 60;
+    const dR = Math.min(60, this.screenH * 0.16);
+    const dX = this.screenW - dR - 24;
+    const dY = this.screenH - dR - 52;
     if (this.isInsideCircle(x, y, dX, dY, dR + 10)) {
       if (kind === 'start') {
         this.dashId = t.identifier;

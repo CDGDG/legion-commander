@@ -108,6 +108,7 @@ export class Game {
     this.hud.stanceUnlockedChecker = (id: string) => this.screens.isStanceUnlocked(id as any);
     this.hud.equippedLoadoutProvider = () => this.screens.equippedStances;
     this.hud.synergyProvider = () => this.synergy;
+    this.hud.touchActiveProvider = () => this.touchInput.enabled;
 
     // Stage must sort children by zIndex so HUD/reward cards render above world
     app.stage.sortableChildren = true;
@@ -160,6 +161,9 @@ export class Game {
     this.app.stage.addChildAt(this.worldContainer, 0);
 
     this.camera = new Camera(this.worldContainer, this.app.screen.width, this.app.screen.height);
+    // Apply current viewport-based zoom now that the camera exists, then snap
+    this.resize();
+    this.camera.snapZoom();
     this.roomSystem = new RoomSystem(this.worldContainer);
     this.waveSystem = new WaveSystem(this.worldContainer);
     this.fxSystem = new FXSystem(this.worldContainer);
@@ -268,7 +272,18 @@ export class Game {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.app.renderer.resize(w, h);
-    if (this.camera) this.camera.resize(w, h);
+    if (this.camera) {
+      this.camera.resize(w, h);
+      // Auto-zoom based on viewport size. Room is 1400×850. On mobile (< ~1100 wide)
+      // zoom out so the player can see enemies approaching from the face-off edge.
+      // Formula: base zoom fits the smaller axis of the room within ~75% of viewport.
+      const fitX = w / 1400;
+      const fitY = h / 850;
+      const fit = Math.min(fitX, fitY);
+      // Clamp to [0.5, 1.0] — never zoom in past desktop baseline
+      const target = Math.max(0.5, Math.min(1.0, fit * 1.3));
+      this.camera.setZoomTarget(target);
+    }
   }
 
   private enterRoom(): void {
@@ -286,13 +301,16 @@ export class Game {
     this.state.faceDir = this.state.isBossRoom ? 'down' : dirs[Math.floor(Math.random() * dirs.length)];
 
     // Player position = opposite side of the room from faceDir, leaving room for the lineup gap.
-    // Room is ~1400×850, so place player ~520 from center horizontally / 280 vertically.
+    // Scale distances down on small screens so the face-off gap fits the viewport.
+    const isSmall = this.app.screen.width < 1000 || this.app.screen.height < 600;
+    const hx = isSmall ? 360 : 520;
+    const hy = isSmall ? 200 : 280;
     let px = 0, py = 0;
     switch (this.state.faceDir) {
-      case 'right': px = -520; py = 0; break;
-      case 'left':  px = 520;  py = 0; break;
-      case 'down':  px = 0;    py = -280; break;
-      case 'up':    px = 0;    py = 280; break;
+      case 'right': px = -hx; py = 0; break;
+      case 'left':  px =  hx; py = 0; break;
+      case 'down':  px = 0;   py = -hy; break;
+      case 'up':    px = 0;   py =  hy; break;
     }
     if (this.state.isBossRoom) { px = 0; py = 150; } // boss: keep legacy spawn
     this.player.reset(px, py);
@@ -647,17 +665,21 @@ export class Game {
     this.roomSystem.update(dt);
 
     // Camera target:
-    // - Lineup phase: target the geometric midpoint between player and enemy edge,
-    //   so both the player formation and the incoming line are framed in shot.
-    // - Combat phase: standard player-follow.
+    // - Lineup phase: midpoint between player and enemy edge so both sides are framed.
+    // - Combat phase: on small screens (mobile), keep a mild bias toward the centroid of
+    //   nearest enemies so they stay visible. On big screens, standard player-follow.
     let camTargetX = this.player.x;
     let camTargetY = this.player.y;
+    const isSmallScreen = this.app.screen.width < 1000 || this.app.screen.height < 600;
     if (this.state.isLineupPhase && !this.state.isBossRoom) {
-      // Enemy line position by faceDir
       const enemyEdgeX = this.state.faceDir === 'right' ? 700 : this.state.faceDir === 'left' ? -700 : this.player.x;
       const enemyEdgeY = this.state.faceDir === 'down'  ? 425 : this.state.faceDir === 'up'   ? -425 : this.player.y;
       camTargetX = (this.player.x + enemyEdgeX) / 2;
       camTargetY = (this.player.y + enemyEdgeY) / 2;
+    } else if (isSmallScreen && this.player.autoAimX !== null && this.player.autoAimY !== null) {
+      // Mobile: bias 30% toward the nearest enemy so action stays in view
+      camTargetX = this.player.x + (this.player.autoAimX - this.player.x) * 0.3;
+      camTargetY = this.player.y + (this.player.autoAimY - this.player.y) * 0.3;
     }
     this.camera.follow(camTargetX, camTargetY, dt);
     this.camera.update(dt);

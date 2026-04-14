@@ -21,6 +21,8 @@ export class HUD {
   equippedLoadoutProvider: (() => (string | null)[]) | null = null;
   /** Provider for the current weapon synergy snapshot. */
   synergyProvider: (() => WeaponSynergyBonus | null) | null = null;
+  /** True when mobile touch input is active — hide desktop stance bar to avoid duplicate UI. */
+  touchActiveProvider: (() => boolean) | null = null;
 
   // Bottom HP bar
   private hpBarContainer: Container;
@@ -288,7 +290,9 @@ export class HUD {
 
   private renderStanceBar(state: GameState, screenW: number, screenH: number): void {
     this.stanceContainer.removeChildren();
-    // On touch devices, the right-side stance buttons handle this; skip bottom bar
+    // Hide bottom stance bar when mobile touch controls are showing — right-side buttons cover it.
+    if (this.touchActiveProvider?.()) return;
+    // Legacy touch detection fallback (for edge cases where provider isn't wired yet)
     const isTouch = ('ontouchstart' in window) && (window.matchMedia?.('(pointer: coarse)').matches ?? true);
     if (isTouch && screenW < 900) return;
 
