@@ -4,13 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Legion Commander</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #111; }
     canvas { display: block; }
+    /* Ensure fonts are loaded before PixiJS renders */
+    .font-preload {
+      position: absolute; left: -9999px; top: -9999px;
+      visibility: hidden; pointer-events: none;
+    }
+    .font-preload .a { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+    .font-preload .b { font-family: 'Noto Sans KR', sans-serif; font-weight: 900; }
   </style>
 </head>
 <body>
+  <!-- Force browser to load fonts before canvas rendering -->
+  <div class="font-preload" aria-hidden="true">
+    <span class="a">LEGION 1234</span>
+    <span class="b">군단지휘관 강화</span>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

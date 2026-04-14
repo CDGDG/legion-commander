@@ -1,9 +1,10 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { GameState, SoldierType } from '../core/GameState';
 import { Player } from '../entities/Player';
+import { FONT_MONO } from '../utils/Fonts';
 
-const STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 14, fill: 0xffffff });
-const TITLE_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
+const STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: 0xffffff });
+const TITLE_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
 
 const SYNERGY_COLORS: Record<SoldierType, number> = {
   swordsman: 0x3366cc, spearman: 0x2299aa, archer: 0x33aa33, mage: 0x8833cc, priest: 0xccaa22,
@@ -49,7 +50,7 @@ export class HUD {
     this.hpBarContainer.addChild(this.hpBar);
 
     this.hpText = new Text('', new TextStyle({
-      fontFamily: 'monospace', fontSize: 16, fill: 0xffffff, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 16, fill: 0xffffff, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 1,
     }));
     this.hpText.anchor.set(0.5);
@@ -78,7 +79,7 @@ export class HUD {
 
     // Center message
     this.centerMsg = new Text('', new TextStyle({
-      fontFamily: 'monospace', fontSize: 36, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 36, fill: 0xffd700, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 2, dropShadowBlur: 4,
     }));
     this.centerMsg.anchor.set(0.5);
@@ -168,7 +169,7 @@ export class HUD {
         g.lineStyle(0);
       }
 
-      const label = new Text(`${type.slice(0, 3).toUpperCase()} ${count}`, new TextStyle({ fontFamily: 'monospace', fontSize: 10, fill: 0xffffff }));
+      const label = new Text(`${type.slice(0, 3).toUpperCase()} ${count}`, new TextStyle({ fontFamily: FONT_MONO, fontSize: 10, fill: 0xffffff }));
       label.x = 4; label.y = 3;
 
       const c = new Container();
@@ -220,7 +221,7 @@ export class HUD {
     this.rewardContainer.addChild(overlay);
 
     const titleText = new Text(title, new TextStyle({
-      fontFamily: 'monospace', fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 2,
     }));
     titleText.anchor.set(0.5);
@@ -267,11 +268,11 @@ export class HUD {
       icon.endFill();
       card.addChild(icon);
 
-      const label = new Text(choice.label, new TextStyle({ fontFamily: 'monospace', fontSize: 11, fill: 0xffffff, fontWeight: 'bold' }));
+      const label = new Text(choice.label, new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0xffffff, fontWeight: 'bold' }));
       label.anchor.set(0.5); label.x = cardW / 2; label.y = 50;
       card.addChild(label);
 
-      const desc = new Text(choice.desc, new TextStyle({ fontFamily: 'monospace', fontSize: 10, fill: 0xaaaaaa, wordWrap: true, wordWrapWidth: cardW - 16 }));
+      const desc = new Text(choice.desc, new TextStyle({ fontFamily: FONT_MONO, fontSize: 10, fill: 0xaaaaaa, wordWrap: true, wordWrapWidth: cardW - 16 }));
       desc.anchor.set(0.5, 0); desc.x = cardW / 2; desc.y = 65;
       card.addChild(desc);
 

@@ -256,60 +256,60 @@ export class CombatSystem {
    */
   private getWeaponHitArea(
     category: WeaponCategory, px: number, py: number, angle: number, range: number
-  ): { cx: number; cy: number; radius: number; shape: string } {
+  ): { cx: number; cy: number; radius: number; shape: string; length: number; width: number } {
     const cos = Math.cos(angle), sin = Math.sin(angle);
     switch (category) {
       case 'sword':
         // Wide arc in front
-        return { cx: px + cos * range * 0.5, cy: py + sin * range * 0.5, radius: range * 0.7, shape: 'arc' };
+        return { cx: px + cos * range * 0.5, cy: py + sin * range * 0.5, radius: range * 0.75, shape: 'arc', length: 0, width: 0 };
       case 'dagger':
-        // Narrow, close
-        return { cx: px + cos * range * 0.5, cy: py + sin * range * 0.5, radius: range * 0.4, shape: 'line' };
+        // Short but decent line (user feedback: range was too short)
+        return { cx: px + cos * range * 0.55, cy: py + sin * range * 0.55, radius: range * 0.6, shape: 'line', length: range * 1.1, width: 18 };
       case 'spear':
-        // Long thin line
-        return { cx: px + cos * range * 0.7, cy: py + sin * range * 0.7, radius: range * 1.0, shape: 'pierce' };
+        // Long pierce line — match visual length (range * 1.2) with decent width
+        return { cx: px + cos * range * 0.6, cy: py + sin * range * 0.6, radius: range * 1.3, shape: 'pierce', length: range * 1.35, width: 22 };
       case 'axe':
         // Small but heavy, directly in front
-        return { cx: px + cos * range * 0.6, cy: py + sin * range * 0.6, radius: range * 0.55, shape: 'impact' };
+        return { cx: px + cos * range * 0.55, cy: py + sin * range * 0.55, radius: range * 0.55, shape: 'impact', length: 0, width: 0 };
       case 'mace':
-        // Wide circular sweep
-        return { cx: px, cy: py, radius: range * 0.95, shape: 'sweep' };
+        // Widest circular sweep (full 360 circle)
+        return { cx: px, cy: py, radius: range * 1.15, shape: 'sweep', length: 0, width: 0 };
       default:
-        return { cx: px + cos * range * 0.5, cy: py + sin * range * 0.5, radius: range * 0.6, shape: 'arc' };
+        return { cx: px + cos * range * 0.5, cy: py + sin * range * 0.5, radius: range * 0.7, shape: 'arc', length: 0, width: 0 };
     }
   }
 
   private isInHitArea(
     ex: number, ey: number, eRadius: number,
-    area: { cx: number; cy: number; radius: number; shape: string },
-    category: WeaponCategory, px: number, py: number, angle: number
+    area: { cx: number; cy: number; radius: number; shape: string; length: number; width: number },
+    _category: WeaponCategory, px: number, py: number, angle: number
   ): boolean {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
     // Sweep: full circle
     if (area.shape === 'sweep') {
       return dist(ex, ey, px, py) <= area.radius + eRadius;
     }
-    // Pierce (spear): line check
+    // Pierce (spear): line check — extends from player forward to `length`, with `width` perpendicular tolerance
     if (area.shape === 'pierce') {
       const dx = ex - px, dy = ey - py;
-      const along = dx * Math.cos(angle) + dy * Math.sin(angle);
-      if (along < 0 || along > area.radius) return false;
-      const perp = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
-      return perp <= 15 + eRadius;
+      const along = dx * cos + dy * sin;
+      if (along < -eRadius || along > area.length + eRadius) return false;
+      const perp = Math.abs(-dx * sin + dy * cos);
+      return perp <= area.width + eRadius;
     }
-    // Line (dagger): narrow forward
+    // Line (dagger): narrow forward corridor, length/width come from hit area
     if (area.shape === 'line') {
       const dx = ex - px, dy = ey - py;
-      const along = dx * Math.cos(angle) + dy * Math.sin(angle);
-      if (along < 0 || along > area.radius * 1.3) return false;
-      const perp = Math.abs(-dx * Math.sin(angle) + dy * Math.cos(angle));
-      return perp <= 12 + eRadius;
+      const along = dx * cos + dy * sin;
+      if (along < -eRadius || along > area.length + eRadius) return false;
+      const perp = Math.abs(-dx * sin + dy * cos);
+      return perp <= area.width + eRadius;
     }
-    // Default: circular area, but only in front half (for sword/axe)
+    // Default: circular area, only in front (for sword/axe)
     const d = dist(ex, ey, area.cx, area.cy);
     if (d > area.radius + eRadius) return false;
-    // Must be in front of player (for arc/impact)
     const fx = ex - px, fy = ey - py;
-    const dot = fx * Math.cos(angle) + fy * Math.sin(angle);
+    const dot = fx * cos + fy * sin;
     return dot >= -eRadius;
   }
 

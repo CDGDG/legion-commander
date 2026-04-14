@@ -20,48 +20,58 @@ export interface WeaponBase {
 
 export type WeaponCategory = 'sword' | 'dagger' | 'spear' | 'axe' | 'bow' | 'staff' | 'mace';
 
+// =============================================================
+// WEAPON IDENTITIES (명확한 장단점)
+// SWORD  : 올라운더 — 무난함. 배우기 쉬움. 특별한 장점/단점 없음
+// DAGGER : 암살자 — 매우 빠름(최고 DPS), 짧은 사거리, 낮은 피해/넉백
+// SPEAR  : 창병 — 긴 사거리+관통(여러 적 동시), 느림, 강한 넉백
+// AXE    : 파괴자 — 최고 단일 피해+최강 넉백, 매우 느림, 좁은 범위
+// BOW    : 원거리 — 투사체, 중간 피해, 근접취약
+// STAFF  : 마도사 — 원거리+광역(스플래시), 느림, 단일 피해 낮음
+// MACE   : 제어 — 가장 넓은 범위+강력한 넉백, 느림, 피해 낮음
+// =============================================================
 export const WEAPON_BASES: WeaponBase[] = [
-  // ===== SWORDS =====
-  { id: 'iron_sword', name: '철검', category: 'sword', atkMult: 1.0, rangeMult: 1.0, rateMult: 1.0, description: '기본 검', cost: 0, tier: 0 },
-  { id: 'knight_sword', name: '기사검', category: 'sword', atkMult: 1.2, rangeMult: 1.1, rateMult: 0.95, description: '가드 후 강타. 검병 시너지', cost: 80, tier: 1 },
-  { id: 'kings_blade', name: '왕의 성검', category: 'sword', atkMult: 1.5, rangeMult: 1.2, rateMult: 0.85, description: '처치 시 5% 재베기. 검병 수 비례 추가 참격', cost: 200, tier: 2 },
-  { id: 'divine_sword', name: '신성검 엑스칼리버', category: 'sword', atkMult: 2.0, rangeMult: 1.4, rateMult: 0.8, description: '공격 시 빛의 폭발. 전 병사 공격력 +15%', cost: 500, tier: 3 },
+  // ===== SWORDS — balanced baseline =====
+  { id: 'iron_sword',   name: '철검',             category: 'sword', atkMult: 1.00, rangeMult: 1.00, rateMult: 1.00, description: '밸런스. 무난한 기본 검.',                                 cost: 0,   tier: 0 },
+  { id: 'knight_sword', name: '기사검',           category: 'sword', atkMult: 1.25, rangeMult: 1.05, rateMult: 0.95, description: '약간 강화된 올라운더. 검병 시너지.',                       cost: 80,  tier: 1 },
+  { id: 'kings_blade',  name: '왕의 성검',        category: 'sword', atkMult: 1.55, rangeMult: 1.15, rateMult: 0.90, description: '처치 시 재베기. 검병 수 비례 추가 참격.',                     cost: 200, tier: 2 },
+  { id: 'divine_sword', name: '신성검 엑스칼리버', category: 'sword', atkMult: 2.00, rangeMult: 1.30, rateMult: 0.85, description: '빛의 폭발. 전 병사 공격력 +15%.',                          cost: 500, tier: 3 },
 
-  // ===== DAGGERS =====
-  { id: 'iron_dagger', name: '철 단검', category: 'dagger', atkMult: 0.6, rangeMult: 0.7, rateMult: 0.4, description: '빠른 공격', cost: 0, tier: 0 },
-  { id: 'venom_fang', name: '독니', category: 'dagger', atkMult: 0.7, rangeMult: 0.7, rateMult: 0.35, description: '공격 시 독 중첩 (3초간 10%추가)', cost: 80, tier: 1 },
-  { id: 'shadow_blade', name: '월영쌍도', category: 'dagger', atkMult: 0.8, rangeMult: 0.8, rateMult: 0.3, description: '대시 후 분신 참격. 궁수 연동 크리율+', cost: 200, tier: 2 },
-  { id: 'void_edge', name: '공허의 칼날', category: 'dagger', atkMult: 1.0, rangeMult: 0.9, rateMult: 0.25, description: '적 처치마다 영구 공속+2%. 백어택 3배', cost: 500, tier: 3 },
+  // ===== DAGGERS — fast DPS, short range (메리트: 공속/DPS·크리 / 단점: 사거리 짧음, 넉백 약함) =====
+  { id: 'iron_dagger', name: '철 단검',   category: 'dagger', atkMult: 0.65, rangeMult: 0.90, rateMult: 0.35, description: '매우 빠른 2연타. 짧은 사거리, 낮은 피해, 넉백 약함.', cost: 0,   tier: 0 },
+  { id: 'venom_fang',  name: '독니',       category: 'dagger', atkMult: 0.75, rangeMult: 0.95, rateMult: 0.33, description: '공격 시 독 중첩 (3초간 10% DoT).',                       cost: 80,  tier: 1 },
+  { id: 'shadow_blade',name: '월영쌍도',   category: 'dagger', atkMult: 0.90, rangeMult: 1.00, rateMult: 0.30, description: '대시 후 분신 참격. 궁수 수 비례 크리율+.',                cost: 200, tier: 2 },
+  { id: 'void_edge',   name: '공허의 칼날',category: 'dagger', atkMult: 1.10, rangeMult: 1.05, rateMult: 0.28, description: '적 처치마다 영구 공속+2%. 백어택 3배.',                 cost: 500, tier: 3 },
 
-  // ===== SPEARS =====
-  { id: 'long_spear', name: '롱스피어', category: 'spear', atkMult: 1.1, rangeMult: 1.6, rateMult: 0.9, description: '긴 사거리, 직선 관통', cost: 0, tier: 0 },
-  { id: 'cavalry_lance', name: '기병창', category: 'spear', atkMult: 1.3, rangeMult: 1.8, rateMult: 0.85, description: '이동속도 비례 피해+. 창병 연동', cost: 100, tier: 1 },
-  { id: 'dragon_fang', name: '용아창', category: 'spear', atkMult: 1.5, rangeMult: 2.0, rateMult: 0.8, description: '적 밀집도 비례 폭딜. 관통 시 잔상', cost: 250, tier: 2 },
-  { id: 'gungnir', name: '궁니르', category: 'spear', atkMult: 2.0, rangeMult: 2.5, rateMult: 0.75, description: '투척 가능. 번개 체인. 창병 궁극 시너지', cost: 600, tier: 3 },
+  // ===== SPEARS — longest reach + pierce (메리트: 긴 사거리·관통·강한 넉백 / 단점: 느림) =====
+  { id: 'long_spear',   name: '롱스피어', category: 'spear', atkMult: 1.20, rangeMult: 1.80, rateMult: 1.15, description: '가장 긴 사거리. 일직선 관통. 여러 적 동시 타격.', cost: 0,   tier: 0 },
+  { id: 'cavalry_lance',name: '기병창',    category: 'spear', atkMult: 1.35, rangeMult: 1.90, rateMult: 1.10, description: '이동속도 비례 피해+. 창병 연동 넉백 강화.',      cost: 100, tier: 1 },
+  { id: 'dragon_fang',  name: '용아창',    category: 'spear', atkMult: 1.60, rangeMult: 2.05, rateMult: 1.05, description: '적 밀집도 비례 폭딜. 관통 시 잔상.',             cost: 250, tier: 2 },
+  { id: 'gungnir',      name: '궁니르',    category: 'spear', atkMult: 2.10, rangeMult: 2.40, rateMult: 1.00, description: '번개 체인. 창병 궁극 시너지.',                   cost: 600, tier: 3 },
 
-  // ===== AXES =====
-  { id: 'hatchet', name: '벌목도끼', category: 'axe', atkMult: 1.3, rangeMult: 0.9, rateMult: 0.7, description: 'HP 30% 이하 적에게 처형 데미지', cost: 60, tier: 0 },
-  { id: 'berserker_axe', name: '광전사의 도끼', category: 'axe', atkMult: 1.5, rangeMult: 1.0, rateMult: 0.65, description: '잃은 HP 비례 공격력+. 위험할수록 강함', cost: 120, tier: 1 },
-  { id: 'thunder_axe', name: '천둥도끼', category: 'axe', atkMult: 1.8, rangeMult: 1.1, rateMult: 0.6, description: '5회째 공격에 번개 (주변 적 피해)', cost: 300, tier: 2 },
-  { id: 'worldsplitter', name: '세계분리자', category: 'axe', atkMult: 2.5, rangeMult: 1.3, rateMult: 0.5, description: '광역 지진 공격. 적 방어 무시. 보스킬러', cost: 700, tier: 3 },
+  // ===== AXES — highest single damage + heaviest knockback (메리트: 최고 피해·넉백 / 단점: 최악 공속, 좁은 범위) =====
+  { id: 'hatchet',       name: '벌목도끼',       category: 'axe', atkMult: 1.70, rangeMult: 0.90, rateMult: 1.50, description: 'HP 30% 이하 적 처형. 매우 느림, 좁은 범위.', cost: 60,  tier: 0 },
+  { id: 'berserker_axe', name: '광전사의 도끼',   category: 'axe', atkMult: 2.00, rangeMult: 0.95, rateMult: 1.45, description: '잃은 HP 비례 공격력+. 위험할수록 강함.',    cost: 120, tier: 1 },
+  { id: 'thunder_axe',   name: '천둥도끼',        category: 'axe', atkMult: 2.30, rangeMult: 1.00, rateMult: 1.40, description: '5회째 공격에 번개 (주변 광역).',            cost: 300, tier: 2 },
+  { id: 'worldsplitter', name: '세계분리자',      category: 'axe', atkMult: 2.90, rangeMult: 1.15, rateMult: 1.30, description: '광역 지진. 적 방어 무시. 보스킬러.',          cost: 700, tier: 3 },
 
-  // ===== BOWS =====
-  { id: 'hunting_bow', name: '사냥활', category: 'bow', atkMult: 0.8, rangeMult: 2.5, rateMult: 1.0, description: '가장 먼 적 우선 저격', cost: 0, tier: 0 },
-  { id: 'rapid_bow', name: '연사궁', category: 'bow', atkMult: 0.7, rangeMult: 2.0, rateMult: 0.5, description: '연속 사격시 공속 가속. 궁수 연동', cost: 100, tier: 1 },
-  { id: 'moonlight_bow', name: '월광궁', category: 'bow', atkMult: 1.0, rangeMult: 3.0, rateMult: 0.8, description: '크리티컬 시 유도 화살 3발', cost: 280, tier: 2 },
-  { id: 'star_rain', name: '별비의 궁', category: 'bow', atkMult: 1.2, rangeMult: 4.0, rateMult: 0.7, description: '주기적 화살비. 전 궁수 사거리+50%', cost: 650, tier: 3 },
+  // ===== BOWS — ranged projectile (메리트: 안전거리·원거리 / 단점: 근접 취약, 투사체 회피 가능) =====
+  { id: 'hunting_bow',  name: '사냥활', category: 'bow', atkMult: 1.00, rangeMult: 3.00, rateMult: 1.25, description: '원거리 화살 투사체. 근접 취약.',     cost: 0,   tier: 0 },
+  { id: 'rapid_bow',    name: '연사궁', category: 'bow', atkMult: 0.85, rangeMult: 2.80, rateMult: 0.90, description: '연속 사격 시 공속 가속. 궁수 연동.',  cost: 100, tier: 1 },
+  { id: 'moonlight_bow',name: '월광궁', category: 'bow', atkMult: 1.20, rangeMult: 3.40, rateMult: 1.15, description: '크리 시 유도 화살 3발.',              cost: 280, tier: 2 },
+  { id: 'star_rain',    name: '별비의 궁', category: 'bow', atkMult: 1.40, rangeMult: 4.00, rateMult: 1.10, description: '주기적 화살비. 전 궁수 사거리+50%.', cost: 650, tier: 3 },
 
-  // ===== STAVES =====
-  { id: 'magic_wand', name: '마도봉', category: 'staff', atkMult: 1.0, rangeMult: 2.0, rateMult: 1.1, description: '평타가 마법탄', cost: 0, tier: 0 },
-  { id: 'frost_staff', name: '빙결지팡이', category: 'staff', atkMult: 1.1, rangeMult: 2.2, rateMult: 1.0, description: '둔화 장판 생성. 얼음 테마 강화', cost: 120, tier: 1 },
-  { id: 'comet_staff', name: '혜성의 지팡이', category: 'staff', atkMult: 1.5, rangeMult: 2.5, rateMult: 0.9, description: '주기적 운석 소환. 마법사 연동', cost: 300, tier: 2 },
-  { id: 'archmage_orb', name: '대마법사의 보주', category: 'staff', atkMult: 2.0, rangeMult: 3.0, rateMult: 0.8, description: '궁극 마법 자동시전. 마법사 궁극 시너지', cost: 700, tier: 3 },
+  // ===== STAVES — ranged AoE (메리트: 원거리+스플래시 / 단점: 느림, 단일 피해 낮음) =====
+  { id: 'magic_wand',  name: '마도봉',            category: 'staff', atkMult: 1.30, rangeMult: 2.60, rateMult: 1.50, description: '원거리 마법탄. 광역 스플래시.',    cost: 0,   tier: 0 },
+  { id: 'frost_staff', name: '빙결지팡이',        category: 'staff', atkMult: 1.40, rangeMult: 2.70, rateMult: 1.45, description: '둔화 장판. 얼음 테마 강화.',       cost: 120, tier: 1 },
+  { id: 'comet_staff', name: '혜성의 지팡이',      category: 'staff', atkMult: 1.70, rangeMult: 2.90, rateMult: 1.40, description: '주기적 운석. 마법사 연동.',        cost: 300, tier: 2 },
+  { id: 'archmage_orb',name: '대마법사의 보주',    category: 'staff', atkMult: 2.20, rangeMult: 3.20, rateMult: 1.30, description: '궁극 마법 자동시전.',               cost: 700, tier: 3 },
 
-  // ===== MACES =====
-  { id: 'iron_mace', name: '철퇴', category: 'mace', atkMult: 1.2, rangeMult: 0.8, rateMult: 0.75, description: '기절 누적. 방패병 관통', cost: 50, tier: 0 },
-  { id: 'holy_hammer', name: '성전 망치', category: 'mace', atkMult: 1.4, rangeMult: 0.9, rateMult: 0.7, description: '성직자 수 비례 충격파', cost: 130, tier: 1 },
-  { id: 'war_flail', name: '전쟁 도리깨', category: 'mace', atkMult: 1.7, rangeMult: 1.0, rateMult: 0.6, description: '회전 공격. 주변 적 다수 타격', cost: 320, tier: 2 },
-  { id: 'mjolnir', name: '묠니르', category: 'mace', atkMult: 2.2, rangeMult: 1.2, rateMult: 0.55, description: '투척+귀환. 번개 폭풍. 전 병사 기절 부여', cost: 750, tier: 3 },
+  // ===== MACES — widest area + strongest knockback (메리트: 최대 범위·최강 넉백 / 단점: 피해 낮음, 느림) =====
+  { id: 'iron_mace',   name: '철퇴',        category: 'mace', atkMult: 1.10, rangeMult: 1.30, rateMult: 1.25, description: '광역 휘두르기. 기절 누적. 방패병 관통.', cost: 50,  tier: 0 },
+  { id: 'holy_hammer', name: '성전 망치',   category: 'mace', atkMult: 1.25, rangeMult: 1.40, rateMult: 1.20, description: '성직자 수 비례 충격파.',                cost: 130, tier: 1 },
+  { id: 'war_flail',   name: '전쟁 도리깨', category: 'mace', atkMult: 1.50, rangeMult: 1.55, rateMult: 1.15, description: '회전 공격. 주변 적 다수 타격.',           cost: 320, tier: 2 },
+  { id: 'mjolnir',     name: '묠니르',      category: 'mace', atkMult: 1.85, rangeMult: 1.75, rateMult: 1.05, description: '번개 폭풍. 전 병사 기절 부여.',           cost: 750, tier: 3 },
 ];
 
 // =============================================================

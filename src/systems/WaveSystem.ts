@@ -155,11 +155,12 @@ export class WaveSystem {
       }
     }
 
-    // Update all enemies - targetX/Y set by CombatSystem for non-player-targeting enemies
+    // Update all enemies - always refresh target so they keep moving
     for (const e of this.enemies) {
       if (!e.active || !e.alive) continue;
-      // Default: head toward player area if no other target assigned
-      if (!e.targetsPlayer && e.targetX === 0 && e.targetY === 0) {
+      if (!e.targetsPlayer) {
+        // CombatSystem may override with nearest soldier; default to player position every frame
+        // so stationary (stale target) bug doesn't happen when the player moves.
         e.targetX = playerX;
         e.targetY = playerY;
       }

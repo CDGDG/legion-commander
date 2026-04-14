@@ -1,6 +1,7 @@
 import { Graphics, Container, Text, TextStyle } from 'pixi.js';
 import { RoomTheme, getTheme, getBossTheme } from './ThemeSystem';
 import { randomRange } from '../utils/math';
+import { FONT_MONO } from '../utils/Fonts';
 
 const ROOM_W = 900;
 const ROOM_H = 550;
@@ -58,7 +59,7 @@ export class RoomSystem {
     this.wallGfx.zIndex = -70;
     this.container.addChild(this.wallGfx);
 
-    this.roomLabel = new Text('', new TextStyle({ fontFamily: 'monospace', fontSize: 14, fill: 0x556666 }));
+    this.roomLabel = new Text('', new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: 0x556666 }));
     this.roomLabel.anchor.set(0.5);
     this.roomLabel.zIndex = 5001;
     this.container.addChild(this.roomLabel);
@@ -353,7 +354,7 @@ export class RoomSystem {
 
       // Label (below portal)
       const label = new Text(choice.label, new TextStyle({
-        fontFamily: 'monospace', fontSize: 13, fill: choice.color,
+        fontFamily: FONT_MONO, fontSize: 13, fill: choice.color,
         fontWeight: 'bold',
         dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 1,
       }));

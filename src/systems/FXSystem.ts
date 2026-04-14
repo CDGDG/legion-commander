@@ -1,4 +1,5 @@
 import { Graphics, Container, Text, TextStyle } from 'pixi.js';
+import { FONT_MONO } from '../utils/Fonts';
 
 interface Particle {
   x: number; y: number;
@@ -16,8 +17,8 @@ interface DmgNumber {
   scale: number;
 }
 
-const DMG_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 16, fill: 0xffffff, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 1 });
-const CRIT_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 24, fill: 0xffd700, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 2 });
+const DMG_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 16, fill: 0xffffff, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 1 });
+const CRIT_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 24, fill: 0xffd700, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 2 });
 
 export class FXSystem {
   private container: Container;

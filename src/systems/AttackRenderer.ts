@@ -256,19 +256,23 @@ export class AttackRenderer {
   // SPEAR - Linear thrust forward, piercing
   // =============================================================
   private updateThrust(t: ThrustAttack): void {
-    const WINDUP = 0.08, THRUST = 0.08, HOLD = 0.08, RETRACT = 0.11;
+    const WINDUP = 0.10, THRUST = 0.07, HOLD = 0.06, RETRACT = 0.14;
     if (t.phase === 'windup') {
-      const p = t.phaseTime / WINDUP;
-      t.currentLength = -8 * p; // pull back
+      // Pull back smoothly
+      const p = Math.min(1, t.phaseTime / WINDUP);
+      t.currentLength = -10 * p;
       if (t.phaseTime >= WINDUP) { t.phase = 'thrust'; t.phaseTime = 0; }
     } else if (t.phase === 'thrust') {
-      const p = t.phaseTime / THRUST;
+      // Fast explosive forward. CLAMP progress so it doesn't overshoot.
+      const p = Math.min(1, t.phaseTime / THRUST);
       const eased = 1 - (1 - p) * (1 - p) * (1 - p);
-      t.currentLength = -8 + (t.length + 8) * eased;
+      t.currentLength = -10 + (t.length + 10) * eased;
       if (t.phaseTime >= THRUST + HOLD) { t.phase = 'retract'; t.phaseTime = 0; }
+      // During HOLD, length stays at max (because p=1 → eased=1 → length)
     } else {
-      const p = t.phaseTime / RETRACT;
-      t.currentLength = t.length * (1 - p);
+      // Retract smoothly
+      const p = Math.min(1, t.phaseTime / RETRACT);
+      t.currentLength = t.length * (1 - p * p);
     }
 
     const cos = Math.cos(t.angle), sin = Math.sin(t.angle);

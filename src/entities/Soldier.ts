@@ -180,18 +180,19 @@ export class Soldier {
 
   private showAttackVisual(tx: number, ty: number): void {
     this.atkGfx.clear();
-    if (this.type === 'archer' || this.type === 'mage') {
-      const cfg = SOLDIER_CONFIGS[this.type];
-      const color = this.type === 'archer' ? 0x88ff88 : 0xcc88ff;
-      this.atkGfx.lineStyle(2, color, 0.8);
-      this.atkGfx.moveTo(this.x, this.y);
-      this.atkGfx.lineTo(tx, ty);
-    } else if (this.type !== 'priest') {
-      const color = this.type === 'swordsman' ? 0x88aaff : 0x66ddee;
-      this.atkGfx.beginFill(color, 0.6);
-      this.atkGfx.drawCircle((this.x + tx) / 2, (this.y + ty) / 2, 8);
-      this.atkGfx.endFill();
+    // Ranged classes (archer/mage/priest) use projectile system for visuals — skip here
+    if (this.type === 'archer' || this.type === 'mage' || this.type === 'priest') {
+      this.atkGfx.visible = false;
+      return;
     }
+    // Melee classes: small impact flash at hit point
+    const color = this.type === 'swordsman' ? 0x88aaff : 0x66ddee;
+    this.atkGfx.beginFill(color, 0.5);
+    this.atkGfx.drawCircle((this.x + tx) / 2, (this.y + ty) / 2, 6);
+    this.atkGfx.endFill();
+    this.atkGfx.beginFill(0xffffff, 0.7);
+    this.atkGfx.drawCircle((this.x + tx) / 2, (this.y + ty) / 2, 3);
+    this.atkGfx.endFill();
     this.atkGfx.visible = true;
     this.atkGfx.zIndex = 7500;
   }

@@ -1,15 +1,16 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { WEAPON_BASES, SOLDIER_DEFS, ARMOR_DATA, type WeaponBase, type SoldierDef, type ArmorPiece, type ArmorSlot } from '../data/ContentData';
 import { getTopScores, savePlayerName, loadPlayerName, isCloudEnabled, type ScoreEntry } from '../systems/Leaderboard';
+import { FONT_MONO } from '../utils/Fonts';
 
 // Position for name input (above start button)
 function btnYForName(screenH: number): number { return screenH - 100; }
 
-const TITLE_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 42, fill: 0xffd700, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 3 });
-const SUB_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 16, fill: 0xaaaaaa });
-const BTN_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 18, fill: 0xffffff, fontWeight: 'bold' });
-const STAT_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 14, fill: 0xcccccc });
-const GOLD_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
+const TITLE_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 42, fill: 0xffd700, fontWeight: 'bold', dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 3 });
+const SUB_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 16, fill: 0xaaaaaa });
+const BTN_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 18, fill: 0xffffff, fontWeight: 'bold' });
+const STAT_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: 0xcccccc });
+const GOLD_STYLE = new TextStyle({ fontFamily: FONT_MONO, fontSize: 20, fill: 0xffd700, fontWeight: 'bold' });
 
 export interface PermanentUpgrade {
   id: string;
@@ -206,7 +207,7 @@ export class Screens {
 
     // Title
     const title = new Text('LEGION COMMANDER', new TextStyle({
-      fontFamily: 'monospace', fontSize: 32, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 32, fill: 0xffd700, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 2,
     }));
     title.anchor.set(0.5);
@@ -251,7 +252,7 @@ export class Screens {
       });
       this.container.addChild(tb);
 
-      const tl = new Text(tab.label, new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: isActive ? tab.color : 0x777777, fontWeight: isActive ? 'bold' : 'normal' }));
+      const tl = new Text(tab.label, new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: isActive ? tab.color : 0x777777, fontWeight: isActive ? 'bold' : 'normal' }));
       tl.anchor.set(0.5);
       tl.x = tabStartX + i * (tabW + 8) + tabW / 2;
       tl.y = tabY + 14;
@@ -384,7 +385,7 @@ export class Screens {
     this.container.addChild(btnText);
 
     // Controls hint
-    const hint = new Text('WASD: Move | Mouse: Attack | Space: Dash | 1-5: Command', new TextStyle({ fontFamily: 'monospace', fontSize: 11, fill: 0x555555 }));
+    const hint = new Text('WASD: Move | Mouse: Attack | Space: Dash | 1-5: Command', new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0x555555 }));
     hint.anchor.set(0.5);
     hint.x = screenW / 2; hint.y = screenH - 10;
     this.container.addChild(hint);
@@ -397,7 +398,7 @@ export class Screens {
     // Header
     const header = new Text(
       isCloudEnabled() ? '🌐 글로벌 랭킹' : '💾 로컬 랭킹 (온라인 랭킹 미설정)',
-      new TextStyle({ fontFamily: 'monospace', fontSize: 14, fill: isCloudEnabled() ? 0x44ff88 : 0xaaaaaa, fontWeight: 'bold' })
+      new TextStyle({ fontFamily: FONT_MONO, fontSize: 14, fill: isCloudEnabled() ? 0x44ff88 : 0xaaaaaa, fontWeight: 'bold' })
     );
     header.x = contentX + 12;
     header.y = contentY + 10;
@@ -424,7 +425,7 @@ export class Screens {
     if (this.cachedScores.length === 0) {
       const empty = new Text(
         this.scoresLoading ? '불러오는 중...' : '아직 기록이 없습니다. 첫 번째가 되어보세요!',
-        new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: 0x888888 })
+        new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: 0x888888 })
       );
       empty.x = contentX + 20;
       empty.y = contentY + 40;
@@ -434,7 +435,7 @@ export class Screens {
 
     // Column headers
     const headerY = contentY + 34;
-    const colStyle = new TextStyle({ fontFamily: 'monospace', fontSize: 10, fill: 0x666666, fontWeight: 'bold' });
+    const colStyle = new TextStyle({ fontFamily: FONT_MONO, fontSize: 10, fill: 0x666666, fontWeight: 'bold' });
     const col = (text: string, x: number) => {
       const t = new Text(text, colStyle);
       t.x = x; t.y = headerY;
@@ -468,8 +469,8 @@ export class Screens {
 
       const rankColor = i === 0 ? 0xffd700 : i === 1 ? 0xcccccc : i === 2 ? 0xcd7f32 : 0x666666;
       const textColor = isSelf ? 0x88ccff : 0xcccccc;
-      const rowStyle = new TextStyle({ fontFamily: 'monospace', fontSize: 11, fill: textColor });
-      const rankStyle = new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: rankColor, fontWeight: 'bold' });
+      const rowStyle = new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: textColor });
+      const rankStyle = new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: rankColor, fontWeight: 'bold' });
 
       const addText = (txt: string, x: number, style: TextStyle = rowStyle) => {
         const t = new Text(txt, style);
@@ -479,7 +480,7 @@ export class Screens {
 
       addText(`${i + 1}`, contentX + 14, rankStyle);
       addText(s.name.slice(0, 14), contentX + 44);
-      addText(`${s.score}`, contentX + 200, new TextStyle({ fontFamily: 'monospace', fontSize: 11, fill: 0xffd700, fontWeight: 'bold' }));
+      addText(`${s.score}`, contentX + 200, new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0xffd700, fontWeight: 'bold' }));
       addText(`${s.room ?? 0}`, contentX + 280);
       addText(`${s.kills ?? 0}`, contentX + 320);
       addText(`${s.ascension ?? 0}`, contentX + 380);
@@ -489,7 +490,7 @@ export class Screens {
 
   private renderNameInput(screenW: number, _screenH: number, y: number): void {
     const boxW = 260;
-    const labelStyle = new TextStyle({ fontFamily: 'monospace', fontSize: 11, fill: 0x888888 });
+    const labelStyle = new TextStyle({ fontFamily: FONT_MONO, fontSize: 11, fill: 0x888888 });
     const label = new Text('이름:', labelStyle);
     label.x = screenW / 2 - boxW / 2 - 40;
     label.y = y + 8;
@@ -515,7 +516,7 @@ export class Screens {
     const nameText = new Text(
       this.playerName || '(클릭해서 입력)',
       new TextStyle({
-        fontFamily: 'monospace', fontSize: 14,
+        fontFamily: FONT_MONO, fontSize: 14,
         fill: this.playerName ? 0xffffff : 0x555555,
         fontWeight: this.playerName ? 'bold' : 'normal',
       })
@@ -552,19 +553,19 @@ export class Screens {
     this.container.addChild(pip);
 
     // Name
-    const nameText = new Text(name, new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: owned ? color : 0x888888, fontWeight: highlighted ? 'bold' : 'normal' }));
+    const nameText = new Text(name, new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: owned ? color : 0x888888, fontWeight: highlighted ? 'bold' : 'normal' }));
     nameText.x = x + 26; nameText.y = y + 4;
     this.container.addChild(nameText);
 
     // Desc
-    const descText = new Text(desc, new TextStyle({ fontFamily: 'monospace', fontSize: 9, fill: 0x666666 }));
+    const descText = new Text(desc, new TextStyle({ fontFamily: FONT_MONO, fontSize: 9, fill: 0x666666 }));
     descText.x = x + 26; descText.y = y + 22;
     this.container.addChild(descText);
 
     // Status / Cost
     const rightText = cost > 0 ? `${cost}G` : status;
     const rightColor = cost > 0 ? (this.gold >= cost ? 0xffd700 : 0x555555) : (highlighted ? 0xffd700 : 0x44cc44);
-    const rt = new Text(rightText, new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: rightColor, fontWeight: 'bold' }));
+    const rt = new Text(rightText, new TextStyle({ fontFamily: FONT_MONO, fontSize: 12, fill: rightColor, fontWeight: 'bold' }));
     rt.anchor.set(1, 0.5);
     rt.x = x + w - 10; rt.y = y + h / 2;
     this.container.addChild(rt);
@@ -584,7 +585,7 @@ export class Screens {
 
     // Death text
     const deathText = new Text('DEFEATED', new TextStyle({
-      fontFamily: 'monospace', fontSize: 48, fill: 0xcc2222, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 48, fill: 0xcc2222, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 3,
     }));
     deathText.anchor.set(0.5);
@@ -601,7 +602,7 @@ export class Screens {
 
     // Gold earned
     const goldText = new Text(`+${goldEarned} Gold`, new TextStyle({
-      fontFamily: 'monospace', fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
     }));
     goldText.anchor.set(0.5);
     goldText.x = screenW / 2;
@@ -609,7 +610,7 @@ export class Screens {
     this.container.addChild(goldText);
 
     const totalText = new Text(`Total Gold: ${this.gold}`, new TextStyle({
-      fontFamily: 'monospace', fontSize: 16, fill: 0xccaa44,
+      fontFamily: FONT_MONO, fontSize: 16, fill: 0xccaa44,
     }));
     totalText.anchor.set(0.5);
     totalText.x = screenW / 2;
@@ -652,7 +653,7 @@ export class Screens {
     this.container.addChild(bg);
 
     const vicText = new Text('VICTORY!', new TextStyle({
-      fontFamily: 'monospace', fontSize: 48, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 48, fill: 0xffd700, fontWeight: 'bold',
       dropShadow: true, dropShadowColor: 0x000000, dropShadowDistance: 3,
     }));
     vicText.anchor.set(0.5);
@@ -661,7 +662,7 @@ export class Screens {
     this.container.addChild(vicText);
 
     const goldText = new Text(`+${goldEarned} Gold`, new TextStyle({
-      fontFamily: 'monospace', fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
+      fontFamily: FONT_MONO, fontSize: 28, fill: 0xffd700, fontWeight: 'bold',
     }));
     goldText.anchor.set(0.5);
     goldText.x = screenW / 2;

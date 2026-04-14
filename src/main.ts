@@ -1,7 +1,11 @@
 import { Application } from 'pixi.js';
 import { Game } from './core/Game';
+import { waitForFontsReady } from './utils/Fonts';
 
 async function main() {
+  // Wait for web fonts to load so initial render isn't garbled on Windows
+  await waitForFontsReady();
+
   const app = new Application({
     width: window.innerWidth,
     height: window.innerHeight,
