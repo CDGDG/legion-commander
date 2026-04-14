@@ -11,11 +11,12 @@ interface SoldierConfig {
 }
 
 const SOLDIER_CONFIGS: Record<SoldierType, SoldierConfig> = {
-  swordsman: { hp: 50, speed: 110, damage: 7, attackRange: 25, attackRate: 0.8, radius: 7, sheetUrl: '/sprites/swordsman.png' },
-  spearman:  { hp: 35, speed: 120, damage: 10, attackRange: 45, attackRate: 1.0, radius: 7, sheetUrl: '/sprites/spearman.png' },
-  archer:    { hp: 20, speed: 85, damage: 8, attackRange: 200, attackRate: 1.5, radius: 6, sheetUrl: '/sprites/archer.png' },
-  mage:      { hp: 15, speed: 75, damage: 16, attackRange: 160, attackRate: 2.5, radius: 6, sheetUrl: '/sprites/mage.png' },
-  priest:    { hp: 25, speed: 95, damage: 0, attackRange: 130, attackRate: 3.0, radius: 6, sheetUrl: '/sprites/priest.png' },
+  // HP ×1.7~1.9 per Codex approach #2 (extend frontline survival without sponging)
+  swordsman: { hp: 95, speed: 110, damage: 7, attackRange: 25, attackRate: 0.8, radius: 7, sheetUrl: '/sprites/swordsman.png' },
+  spearman:  { hp: 63, speed: 120, damage: 10, attackRange: 45, attackRate: 1.0, radius: 7, sheetUrl: '/sprites/spearman.png' },
+  archer:    { hp: 34, speed: 85, damage: 8, attackRange: 200, attackRate: 1.5, radius: 6, sheetUrl: '/sprites/archer.png' },
+  mage:      { hp: 26, speed: 75, damage: 16, attackRange: 160, attackRate: 2.5, radius: 6, sheetUrl: '/sprites/mage.png' },
+  priest:    { hp: 45, speed: 95, damage: 0, attackRange: 130, attackRate: 3.0, radius: 6, sheetUrl: '/sprites/priest.png' },
 };
 
 export class Soldier {

@@ -11,11 +11,13 @@ interface EnemyConfig {
 }
 
 const ENEMY_CONFIGS: Record<EnemyType, EnemyConfig> = {
-  grunt:    { hp: 20, speed: 55, damage: 5, attackRange: 18, attackRate: 1.0, radius: 8, xp: 3, sheetUrl: '/sprites/grunt.png' },
-  charger:  { hp: 30, speed: 160, damage: 10, attackRange: 15, attackRate: 0.8, radius: 9, xp: 5, sheetUrl: '/sprites/charger.png' },
-  sniper:   { hp: 15, speed: 35, damage: 8, attackRange: 200, attackRate: 2.0, radius: 7, xp: 5, sheetUrl: '/sprites/sniper.png' },
-  shielder: { hp: 80, speed: 40, damage: 3, attackRange: 18, attackRate: 1.5, radius: 12, xp: 8, sheetUrl: '/sprites/shielder.png' },
-  bomber:   { hp: 25, speed: 100, damage: 25, attackRange: 10, attackRate: 99, radius: 8, xp: 6, sheetUrl: '/sprites/bomber.png' },
+  // HP ×2.0~2.7, DMG ×1.1~1.2 per Codex approach #2
+  // Shielder intentionally lower HP mult (×1.8) to avoid boring sponge
+  grunt:    { hp: 50, speed: 55, damage: 6, attackRange: 18, attackRate: 1.0, radius: 8, xp: 4, sheetUrl: '/sprites/grunt.png' },
+  charger:  { hp: 75, speed: 160, damage: 11, attackRange: 15, attackRate: 0.8, radius: 9, xp: 7, sheetUrl: '/sprites/charger.png' },
+  sniper:   { hp: 36, speed: 35, damage: 9, attackRange: 200, attackRate: 2.0, radius: 7, xp: 7, sheetUrl: '/sprites/sniper.png' },
+  shielder: { hp: 145, speed: 40, damage: 4, attackRange: 18, attackRate: 1.5, radius: 12, xp: 12, sheetUrl: '/sprites/shielder.png' },
+  bomber:   { hp: 55, speed: 100, damage: 28, attackRange: 10, attackRate: 99, radius: 8, xp: 9, sheetUrl: '/sprites/bomber.png' },
 };
 
 export class Enemy {
@@ -57,11 +59,13 @@ export class Enemy {
     this.type = type;
     this.x = x; this.y = y;
     this.isBoss = false;
-    const eliteMult = elite ? 3 : 1;
-    this.maxHp = cfg.hp * hpMult * eliteMult;
+    // Elite: HP ×2 (was ×3), DMG ×1.4 (was ×3) — base enemies are fatter now so tone down elites
+    const eliteHpMult = elite ? 2.0 : 1;
+    const eliteDmgMult = elite ? 1.4 : 1;
+    this.maxHp = cfg.hp * hpMult * eliteHpMult;
     this.hp = this.maxHp;
     this.speed = cfg.speed * (elite ? 0.8 : 1);
-    this.damage = cfg.damage * dmgMult * eliteMult;
+    this.damage = cfg.damage * dmgMult * eliteDmgMult;
     this.attackRange = cfg.attackRange;
     this.attackRate = cfg.attackRate;
     this.radius = cfg.radius * (elite ? 1.5 : 1);
@@ -94,10 +98,11 @@ export class Enemy {
     this.type = 'grunt';
     this.x = x; this.y = y;
     this.isBoss = true; this.isElite = true;
-    this.maxHp = 300 + bossLevel * 200;
+    // Boss HP ×3 — target TTK ~45-90s (was ~15-30s). Damage tempered to not instakill.
+    this.maxHp = 900 + bossLevel * 600;
     this.hp = this.maxHp;
     this.speed = 70;
-    this.damage = 12 + bossLevel * 5;
+    this.damage = 14 + bossLevel * 5;
     this.attackRange = 30;
     this.attackRate = 1.2;
     this.radius = 28;

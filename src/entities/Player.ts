@@ -11,13 +11,13 @@ import { sound } from '../systems/SoundSystem';
 export class Player {
   x = 0;
   y = 0;
-  hp = 100;
-  maxHp = 100;
+  hp = 120;            // +20% — Codex approach #2
+  maxHp = 120;
   speed = 200;
-  attackDamage = 22;
+  attackDamage = 20;   // -9% — extend TTK
   attackRange = 65;
   attackCooldown = 0;
-  attackRate = 0.5; // deliberate, weighty attacks
+  attackRate = 0.5;    // DPS now 40 (was 44)
   radius = 14;
 
   dashSpeed = 600;

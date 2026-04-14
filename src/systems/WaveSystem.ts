@@ -36,8 +36,13 @@ export class WaveSystem {
 
   private getRoomConfig(room: number): RoomEnemies {
     const region = Math.ceil(room / 5);
-    const hpMult = 1 + (room - 1) * 0.1;
-    const dmgMult = 1 + (room - 1) * 0.08;
+    // Codex approach #2 scaling: gentle convex curve (not pure linear)
+    // Room 1: ×1.0, Room 5: ×1.40, Room 10: ×2.04
+    const r = room - 1;
+    const hpMult = 1 + 0.07 * r + 0.005 * r * r;
+    // DMG grows slower to preserve player survival
+    // Room 1: ×1.0, Room 5: ×1.22, Room 10: ×1.63
+    const dmgMult = 1 + 0.045 * r + 0.0025 * r * r;
 
     // Base grunt count scales with room
     const gruntBase = 8 + room * 4;
@@ -103,11 +108,14 @@ export class WaveSystem {
     const boss = this.getFromPool();
     boss.initBoss(0, -100, bossLevel, this.container);
 
-    // Also spawn some adds
+    // Also spawn some adds using current room scaling (not just bossLevel)
     const addCount = 5 + bossLevel * 3;
     this.spawnQueue = [];
+    const r = state.room - 1;
+    const hpMult = 1 + 0.07 * r + 0.005 * r * r;
+    const dmgMult = 1 + 0.045 * r + 0.0025 * r * r;
     for (let i = 0; i < addCount; i++) {
-      this.spawnQueue.push({ type: 'grunt', elite: false, hpMult: 1 + bossLevel * 0.3, dmgMult: 1 + bossLevel * 0.2 });
+      this.spawnQueue.push({ type: 'grunt', elite: false, hpMult, dmgMult });
     }
   }
 
