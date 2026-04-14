@@ -93,6 +93,9 @@ export class Game {
     this.input = new Input(app.view as HTMLCanvasElement);
     this.hud.stanceUnlockedChecker = (id: string) => this.screens.isStanceUnlocked(id as any);
 
+    // Stage must sort children by zIndex so HUD/reward cards render above world
+    app.stage.sortableChildren = true;
+    this.hud.container.zIndex = 1000;
     app.stage.addChild(this.hud.container);
     app.stage.addChild(this.screens.container);
 
@@ -258,66 +261,75 @@ export class Game {
     }
   }
 
-  private showDoorChoices(): void {
-    if (this.doorChoicesShown) return;
-    this.doorChoicesShown = true;
-    this.state.phase = 'doorSelect';
-    const choices = this.state.generateDoorChoices();
-    const colorMap: Record<RoomRewardType, number> = {
-      soldier: 0x3366cc, playerBuff: 0xffd700, heal: 0x44cc44, soldierBuff: 0x8833cc, boss: 0xff0066,
-    };
-    this.roomSystem.showDoors(
-      choices.map(c => ({ label: c.label, color: colorMap[c.rewardType] })),
-      (idx) => { this.roomSystem.hideDoors(); this.applyReward(choices[idx].rewardType); }
+  /**
+   * Build a flat pool of all possible reward options (soldier recruit, player buff,
+   * soldier buff, heal). Returns 3 unique random picks.
+   */
+  private buildRewardPool(): { label: string; desc: string; color: number; action: () => void }[] {
+    const pool: { label: string; desc: string; color: number; action: () => void }[] = [];
+
+    // === Soldier recruits (one entry per unlocked type) ===
+    const unlockedTypes = SOLDIER_TYPES.filter(t => this.screens.isSoldierUnlocked(t));
+    for (const type of unlockedTypes) {
+      const count = randomInt(2, 5);
+      pool.push({
+        label: `+${count} ${SOLDIER_NAMES[type]}`,
+        desc: `${SOLDIER_NAMES[type]} ${count}명 합류`,
+        color: SOLDIER_COLORS[type],
+        action: () => this.spawnSoldiers(type, count),
+      });
+    }
+
+    // === Player buffs ===
+    pool.push(
+      { label: 'HP +30',     desc: '최대 체력 증가',     color: 0x44cc44, action: () => { this.player.maxHp += 30; this.player.hp = Math.min(this.player.hp + 30, this.player.maxHp); } },
+      { label: 'ATK +8',     desc: '공격력 증가',         color: 0xff6644, action: () => { this.player.attackDamage += 8; } },
+      { label: 'Speed +25',  desc: '이동속도 증가',       color: 0x44aaff, action: () => { this.player.speed += 25; } },
+      { label: '공속 강화',  desc: '공격속도 +20%',       color: 0xffdd44, action: () => { this.player.attackRate *= 0.8; } },
+      { label: '대시 강화',  desc: '대시 쿨타임 -0.2초',  color: 0xffaa44, action: () => { this.player.dashCooldownMax = Math.max(0.3, this.player.dashCooldownMax - 0.2); } },
     );
+
+    // === Heal ===
+    const healAmt = Math.floor(this.player.maxHp * 0.5);
+    pool.push({
+      label: `+${healAmt} HP 회복`,
+      desc: '플레이어 + 모든 병사 회복',
+      color: 0x55ee77,
+      action: () => {
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + healAmt);
+        for (const s of this.soldiers) if (s.active && s.alive) s.hp = s.maxHp;
+      },
+    });
+
+    // === Soldier buffs (random per existing type) ===
+    const existing = SOLDIER_TYPES.filter(t => this.state.soldierCounts[t] > 0);
+    for (const type of existing) {
+      const upgrades = SOLDIER_UPGRADES[type];
+      const up = upgrades[randomInt(0, upgrades.length - 1)];
+      pool.push({
+        label: `${SOLDIER_NAMES[type]}: ${up.label}`,
+        desc: up.desc,
+        color: SOLDIER_COLORS[type],
+        action: () => up.apply(this.soldiers, type),
+      });
+    }
+
+    return pool;
   }
 
-  private applyReward(rewardType: RoomRewardType): void {
+  /**
+   * Show 3 random rewards directly (no door selection step).
+   */
+  private showRewardChoices(): void {
+    if (this.doorChoicesShown) return;
+    this.doorChoicesShown = true;
     this.state.phase = 'reward';
-    const sw = this.app.screen.width, sh = this.app.screen.height;
 
-    switch (rewardType) {
-      case 'soldier': {
-        const opts = [];
-        const unlockedTypes = SOLDIER_TYPES.filter(t => this.screens.isSoldierUnlocked(t));
-        for (let i = 0; i < 3; i++) {
-          const type = unlockedTypes[randomInt(0, unlockedTypes.length - 1)];
-          const count = randomInt(2, 5);
-          opts.push({ label: `+${count} ${SOLDIER_NAMES[type]}`, desc: `${SOLDIER_NAMES[type]} ${count}명 합류`, color: SOLDIER_COLORS[type], action: () => this.spawnSoldiers(type, count) });
-        }
-        this.hud.showReward('병사 영입', opts, sw, sh, () => this.advanceRoom());
-        break;
-      }
-      case 'playerBuff': {
-        const buffs = [
-          { label: 'HP +30', desc: '최대 체력 증가', color: 0x44cc44, action: () => { this.player.maxHp += 30; this.player.hp = Math.min(this.player.hp + 30, this.player.maxHp); } },
-          { label: 'ATK +8', desc: '공격력 증가', color: 0xff6644, action: () => { this.player.attackDamage += 8; } },
-          { label: 'Speed +25', desc: '이동속도 증가', color: 0x44aaff, action: () => { this.player.speed += 25; } },
-          { label: '공속 강화', desc: '공격속도 +20%', color: 0xffdd44, action: () => { this.player.attackRate *= 0.8; } },
-        ];
-        this.hud.showReward('전사의 축복', buffs.sort(() => Math.random() - 0.5).slice(0, 3), sw, sh, () => this.advanceRoom());
-        break;
-      }
-      case 'heal': {
-        const heal = Math.floor(this.player.maxHp * 0.5);
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
-        for (const s of this.soldiers) if (s.active && s.alive) s.hp = s.maxHp;
-        this.hud.showCenterMessage(`HP +${heal} 회복!`, 1.5);
-        setTimeout(() => this.advanceRoom(), 1200);
-        break;
-      }
-      case 'soldierBuff': {
-        const existing = SOLDIER_TYPES.filter(t => this.state.soldierCounts[t] > 0);
-        if (existing.length === 0) { this.advanceRoom(); return; }
-        const opts = existing.slice(0, 3).map(type => {
-          const up = SOLDIER_UPGRADES[type][randomInt(0, SOLDIER_UPGRADES[type].length - 1)];
-          return { label: `${SOLDIER_NAMES[type]}: ${up.label}`, desc: up.desc, color: SOLDIER_COLORS[type], action: () => up.apply(this.soldiers, type) };
-        });
-        this.hud.showReward('군단 강화', opts, sw, sh, () => this.advanceRoom());
-        break;
-      }
-      default: this.advanceRoom();
-    }
+    const pool = this.buildRewardPool();
+    // Shuffle and pick 3 unique
+    const shuffled = pool.sort(() => Math.random() - 0.5).slice(0, 3);
+
+    this.hud.showReward('보상 선택', shuffled, this.app.screen.width, this.app.screen.height, () => this.advanceRoom());
   }
 
   private submitRunScore(victory: boolean): void {
@@ -505,7 +517,7 @@ export class Game {
       this.roomClearTimer = 0;
       sound.roomClear();
       this.hud.showCenterMessage('CLEAR!', 1.5);
-      setTimeout(() => this.showDoorChoices(), 800);
+      setTimeout(() => this.showRewardChoices(), 600);
     }
     if (this.roomCleared) {
       this.roomClearTimer += dt;
